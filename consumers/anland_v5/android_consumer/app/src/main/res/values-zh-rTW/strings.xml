@@ -19,7 +19,7 @@
     <string name="cat_connection_subtitle">socket、root、麥克風、相機與音訊延遲</string>
     <string name="cat_resolution_subtitle">輸出解析度與預設</string>
     <string name="cat_general_title">一般</string>
-    <string name="cat_general_subtitle">螢幕方向與設定通知</string>
+    <string name="cat_general_subtitle">螢幕方向、螢幕逾時與設定通知</string>
     <!-- Screen orientation -->
     <string name="section_orientation">螢幕方向</string>
     <string name="orientation_label">強制螢幕方向</string>
@@ -208,4 +208,7 @@
         <item>螢幕 × 0.5</item>
         <item>螢幕 × 0.25</item>
     </string-array>
+    <string name="section_screen_timeout">螢幕逾時</string>
+    <string name="keep_screen_on_switch">保持螢幕常亮</string>
+    <string name="keep_screen_on_hint">開啟時，桌面在前景期間螢幕持續亮著。關閉後依系統的螢幕逾時設定自動關閉螢幕；沉浸模式下被獨占的輸入裝置的操作仍視為活動。返回桌面後生效。</string>
 </resources>

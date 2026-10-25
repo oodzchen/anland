@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -121,6 +122,10 @@ public class MainActivity extends Activity
     // Persistent "tap to open Settings" notification, toggleable in Settings > General.
     private static final String KEY_NOTIFICATION_ENABLED = "settings_notification";
     private static final String KEY_AUTO_STRETCH = "auto_stretch";
+    // Off: the window no longer pins the screen on, so Android's own screen
+    // timeout applies. Synced in onResume. See applyKeepScreenOn().
+    static final String KEY_KEEP_SCREEN_ON = "keep_screen_on";
+    private boolean keepScreenOn = true;
     private boolean autoStretch = true;
     private float surfaceOffsetX = 0f;
     private float surfaceOffsetY = 0f;
@@ -577,7 +582,9 @@ public class MainActivity extends Activity
 
         clipboard = new Clipboard(this, mNative);
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        keepScreenOn = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(KEY_KEEP_SCREEN_ON, true);
+        applyKeepScreenOn();
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         // Take over inset handling: the IME insets are dispatched to our
         // OnApplyWindowInsetsListener (so we can resize the surface) instead of
@@ -1644,6 +1651,8 @@ public class MainActivity extends Activity
             mRoot.post(this::syncPointerCapture);
         autoStretch = prefs.getBoolean(KEY_AUTO_STRETCH, true);
         relayout();
+        keepScreenOn = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true);
+        applyKeepScreenOn();
 
         // Warm the occupancy cache off the critical path, so the immersive
         // toggle never has to wait on an su round trip to know what Gold holds.
@@ -1692,6 +1701,7 @@ public class MainActivity extends Activity
         Log.i(TAG, "onDestroy: releasing native and immersive input");
         lifecycleHandler.removeCallbacks(delayedFocusStop);
         lifecycleHandler.removeCallbacks(delayedSurfaceStop);
+        lifecycleHandler.removeCallbacks(grabbedActivityExpiry);
         mResumed = false;
         abandonMediaAudioFocus();
         if (immersive != null) immersive.stop();
@@ -2216,6 +2226,45 @@ public class MainActivity extends Activity
     public void sendMouseScroll(int axis, float value) {
         if (mNative != null)
             mNative.sendMouseScroll(axis, value);
+    }
+
+    // Grabbed input never reaches Android, so with keep-screen-on off the screen
+    // would time out in the middle of an immersive session. Each grabbed event
+    // holds FLAG_KEEP_SCREEN_ON briefly instead; WindowManager takes its screen
+    // wake lock with ON_AFTER_RELEASE, so dropping the flag counts as user
+    // activity and the system timeout restarts from the last grabbed input.
+    private static final long GRABBED_ACTIVITY_HOLD_MS = 5000L;
+    private long lastGrabbedInputMs;
+    private boolean grabbedActivityHeld;
+    private final Runnable grabbedActivityExpiry = new Runnable() {
+        @Override
+        public void run() {
+            long left = lastGrabbedInputMs + GRABBED_ACTIVITY_HOLD_MS
+                - SystemClock.uptimeMillis();
+            if (left > 0) {
+                lifecycleHandler.postDelayed(this, left);
+                return;
+            }
+            grabbedActivityHeld = false;
+            applyKeepScreenOn();
+        }
+    };
+
+    private void applyKeepScreenOn() {
+        if (keepScreenOn || grabbedActivityHeld)
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    @Override
+    public void onGrabbedInput() {
+        lastGrabbedInputMs = SystemClock.uptimeMillis();
+        if (keepScreenOn || grabbedActivityHeld)
+            return;
+        grabbedActivityHeld = true;
+        applyKeepScreenOn();
+        lifecycleHandler.postDelayed(grabbedActivityExpiry, GRABBED_ACTIVITY_HOLD_MS);
     }
 
     @Override

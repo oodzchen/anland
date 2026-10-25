@@ -21,7 +21,7 @@
     <string name="cat_connection_subtitle">Socket, root, mic, camera &amp; audio latency</string>
     <string name="cat_resolution_subtitle">Output resolution &amp; presets</string>
     <string name="cat_general_title">General</string>
-    <string name="cat_general_subtitle">Screen orientation &amp; settings notification</string>
+    <string name="cat_general_subtitle">Screen orientation, timeout &amp; settings notification</string>
 
     <!-- Screen orientation -->
     <string name="section_orientation">Screen Orientation</string>
@@ -247,4 +247,7 @@
     <string name="pad_tip">Keep single-finger and two-finger taps while suppressing clicks from scrolling. Applies to captured and immersive touchpads when returning to the desktop; the on-screen touchpad is unchanged.</string>
     <string name="pad_guard">Suppress external touchpad taps for %1$d ms after scrolling (0 = off)</string>
     <string name="pad_debug">Touchpad debug log (AnlandTouchpad)</string>
+    <string name="section_screen_timeout">Screen Timeout</string>
+    <string name="keep_screen_on_switch">Keep screen on</string>
+    <string name="keep_screen_on_hint">When ON, the screen stays on while the desktop is in the foreground. When OFF, the system screen timeout applies; input from grabbed devices in immersive mode still counts as activity. Takes effect on return to the desktop.</string>
 </resources>
