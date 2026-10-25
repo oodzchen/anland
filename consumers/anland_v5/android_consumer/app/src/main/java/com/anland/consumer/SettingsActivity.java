@@ -341,6 +341,7 @@ public class SettingsActivity extends Activity {
         currentPage = Page.GENERAL;
         LinearLayout root = newPage(R.string.cat_general_title);
         buildOrientationSection(root);
+        buildScreenTimeoutSection(root);
         buildNotificationSection(root);
         setContent(root);
     }
@@ -1141,6 +1142,34 @@ public class SettingsActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
         root.addView(spinner);
+    }
+
+    private void buildScreenTimeoutSection(LinearLayout root) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        TextView header = new TextView(this);
+        header.setText(R.string.section_screen_timeout);
+        header.setTextSize(16);
+        header.setTypeface(null, Typeface.BOLD);
+        header.setPadding(0, dp(24), 0, dp(8));
+        root.addView(header);
+
+        Switch keepOnSwitch = new Switch(this);
+        keepOnSwitch.setText(R.string.keep_screen_on_switch);
+        keepOnSwitch.setTextSize(14);
+        keepOnSwitch.setPadding(0, dp(8), 0, 0);
+        keepOnSwitch.setChecked(prefs.getBoolean(MainActivity.KEY_KEEP_SCREEN_ON, true));
+        keepOnSwitch.setOnCheckedChangeListener((v, checked) ->
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putBoolean(MainActivity.KEY_KEEP_SCREEN_ON, checked).apply());
+        root.addView(keepOnSwitch);
+
+        TextView keepOnHint = new TextView(this);
+        keepOnHint.setText(R.string.keep_screen_on_hint);
+        keepOnHint.setTextSize(12);
+        keepOnHint.setTextColor(Color.GRAY);
+        keepOnHint.setPadding(0, dp(4), 0, dp(24));
+        root.addView(keepOnHint);
     }
 
     private void buildNotificationSection(LinearLayout root) {

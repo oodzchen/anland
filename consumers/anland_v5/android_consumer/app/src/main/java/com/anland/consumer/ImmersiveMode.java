@@ -106,6 +106,11 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
         void sendMouseScroll(int axis, float value);
         /** Session started or ended; the host re-syncs pointer capture. */
         void onImmersiveChanged(boolean active);
+        /**
+         * Grabbed input arrived. Android never sees it, so it does not count as
+         * user activity for the screen timeout; the host has to vouch for it.
+         */
+        void onGrabbedInput();
     }
 
     /** Per-device translation state. */
@@ -558,6 +563,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
     public void onEvents(int[] batch, int count) {
         if (!active && !starting)
             return;
+        host.onGrabbedInput();
         statsEvents += count / InputGrabTransport.EVENT_STRIDE;
         for (int i = 0; i + InputGrabTransport.EVENT_STRIDE <= count;
                 i += InputGrabTransport.EVENT_STRIDE) {

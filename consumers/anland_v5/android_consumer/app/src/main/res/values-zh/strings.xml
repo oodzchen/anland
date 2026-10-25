@@ -19,7 +19,7 @@
     <string name="cat_connection_subtitle">套接字、root、麦克风、摄像头与音频延迟</string>
     <string name="cat_resolution_subtitle">输出分辨率与预设</string>
     <string name="cat_general_title">通用</string>
-    <string name="cat_general_subtitle">屏幕方向与设置通知</string>
+    <string name="cat_general_subtitle">屏幕方向、息屏与设置通知</string>
     <!-- Screen orientation -->
     <string name="section_orientation">屏幕方向</string>
     <string name="orientation_label">强制屏幕方向</string>
@@ -231,4 +231,7 @@
     <string name="pad_tip">默认保留单指及双指轻击，仅抑制滚动手势产生的误点击。返回桌面后对指针捕获及沉浸模式的触摸板生效，屏幕触摸板不受影响。</string>
     <string name="pad_guard">滚动结束后 %1$d ms 内忽略外接触摸板轻击（0 = 关闭）</string>
     <string name="pad_debug">触摸板调试日志（AnlandTouchpad）</string>
+    <string name="section_screen_timeout">息屏</string>
+    <string name="keep_screen_on_switch">保持屏幕常亮</string>
+    <string name="keep_screen_on_hint">开启时，桌面在前台期间屏幕始终常亮。关闭后按系统的息屏时间自动息屏；沉浸模式下被独占的输入设备的操作仍视为活动。返回桌面后生效。</string>
 </resources>
