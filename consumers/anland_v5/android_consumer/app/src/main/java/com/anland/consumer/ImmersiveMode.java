@@ -651,7 +651,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
      * Mouse and clickpad buttons. A single-button clickpad reports every press as
      * BTN_LEFT, so the pressing finger's position decides left vs right — the
      * same rule the Android-captured pad uses — and the choice is latched, so a
-     * finger drifting across the midline cannot strand a held button.
+     * finger drifting out of the button area cannot strand a held button.
      */
     private void handlePointerButton(Dev d, int code, boolean pressed) {
         int button = code;
@@ -664,8 +664,6 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
                     probe.recycle();
                 }
                 d.latchedButton = button;
-                // A physical press is not a gesture; drop whatever was in flight.
-                d.pad.cancel();
             } else if (d.latchedButton != 0) {
                 button = d.latchedButton;
                 d.latchedButton = 0;
@@ -676,6 +674,11 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
         if (keyDown[button] == pressed)
             return;
         keyDown[button] = pressed;
+        // A physical button is not a gesture: while it is held the pad only moves
+        // the cursor, and it synthesizes no tap until every finger has lifted.
+        // Told before the press goes out, so a synthetic drag is released first.
+        if (d.pad != null)
+            d.pad.onPhysicalButton(pressed, d.clickpad);
         host.sendMouseButton(button, pressed);
     }
 

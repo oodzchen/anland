@@ -6,6 +6,8 @@ import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 
+import java.util.Arrays;
+
 /**
  * Laptop-style touchpad: interprets finger contacts as relative cursor motion,
  * taps/clicks, long-press drag and two-finger scroll.
@@ -67,6 +69,9 @@ public final class Touchpad {
     // gesture before recognize() sees it; cancel() intentionally does not clear
     // this, so the prior finger positions survive for the press to be judged.
     private boolean clickpadBaselineValid = false;
+    // Fraction of the pad's height, at the bottom of its right half, that a
+    // clickpad press reports as BTN_RIGHT (libinput's software button area).
+    private static final float RIGHT_BUTTON_AREA_HEIGHT = 0.2f;
     private final float touchSlop;
 
     // Physical pads can disable synthesized taps while retaining real buttons
@@ -86,8 +91,57 @@ public final class Touchpad {
     }
 
     private boolean allowTap(long time) {
-        return tapToClick && !scrollInStream && !tapSuppressedInStream
+        return tapToClick && !scrollInStream && !tapSuppressedInStream && !clickInStream
                 && time - lastScrollTime >= scrollGuardMs;
+    }
+
+    // Physical buttons of a grabbed pad (see onPhysicalButton). While one is held
+    // the pad is only a pointer: the contact that moves drives the cursor, the one
+    // holding the press is ignored, and nothing becomes a tap, scroll or pinch.
+    private int heldButtons;
+    // The contact stream saw a physical click, so it synthesizes no click of its
+    // own; cleared when the next stream starts with no button held.
+    private boolean clickInStream;
+    // A clickpad finger rolls as it presses and releases. The cursor stays put
+    // until a contact travels pressSlop from where the press found it, so the
+    // click lands where it was aimed instead of starting a drag (a link dragged
+    // a few pixels is not opened).
+    private boolean pressMotionLocked;
+    private final float pressSlop;
+    // After release the remaining contacts are re-anchored on their next move.
+    private boolean resumeAfterButton;
+    private static final int MAX_HELD_CONTACTS = 16;
+    private final boolean[] heldTracked = new boolean[MAX_HELD_CONTACTS];
+    private final float[] heldLastX = new float[MAX_HELD_CONTACTS];
+    private final float[] heldLastY = new float[MAX_HELD_CONTACTS];
+    private final float[] heldPressX = new float[MAX_HELD_CONTACTS];
+    private final float[] heldPressY = new float[MAX_HELD_CONTACTS];
+
+    /**
+     * A physical button of this pad went down or up. onSurface is true for a
+     * clickpad, whose button is pressed through a finger on the surface.
+     */
+    void onPhysicalButton(boolean pressed, boolean onSurface) {
+        if (pressed) {
+            if (heldButtons++ > 0)
+                return;
+            releaseForwardedTouches();
+            if (isDraggingActive)
+                sendButton(0x110, false);
+            resetTouchpadState();
+            resetSmoothing();
+            lastTapTime = 0L;
+            clickInStream = true;
+            resumeAfterButton = false;
+            pressMotionLocked = onSurface;
+            Arrays.fill(heldTracked, false);
+        } else {
+            if (heldButtons == 0 || --heldButtons > 0)
+                return;
+            pressMotionLocked = false;
+            resumeAfterButton = true;
+            resetSmoothing();
+        }
     }
 
     private void markScroll() {
@@ -214,6 +268,7 @@ public final class Touchpad {
         this.output = output;
         this.synthesizeDoubleTap = synthesizeDoubleTap;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        pressSlop = touchSlop * 2.5f;
         setGestureThresholds(DEFAULT_SCROLL_THRESHOLD_FACTOR,
                 DEFAULT_MOVE_THRESHOLD_FACTOR);
     }
@@ -300,6 +355,10 @@ public final class Touchpad {
         lastTapTime = 0L;
         lastTapX = 0f;
         lastTapY = 0f;
+        heldButtons = 0;
+        clickInStream = false;
+        pressMotionLocked = false;
+        resumeAfterButton = false;
     }
 
     /**
@@ -307,17 +366,20 @@ public final class Touchpad {
      * pressing finger is the slowest contact -- it is held still to click -- so
      * each current contact is compared against the last position recognize()
      * recorded (lastX1 for the primary finger, lastX2 for the second) and the one
-     * that travelled least wins. Left half of the pad => BTN_LEFT (0x110), right
-     * half => BTN_RIGHT (0x111).
+     * that travelled least wins. Only the bottom-right button area
+     * ({@link #RIGHT_BUTTON_AREA_HEIGHT} of the pad, right half) is BTN_RIGHT
+     * (0x111); everywhere else is BTN_LEFT (0x110), so an ordinary click or
+     * click-drag that happens to start on the right side stays a left click.
      *
-     * Call on the ACTION_BUTTON_PRESS event. The press triggers cancel(), which
-     * does not clear the baseline, so the prior positions are still live. Returns
-     * BTN_LEFT when no baseline is available (a press with no contact on the pad).
+     * Call on the press, before the pad is told about it: neither cancel() nor
+     * onPhysicalButton() clears the baseline, so the prior positions are still
+     * live. Without a baseline (the finger landed in the same frame as the press)
+     * the first contact is the pressing one; with no contact at all, BTN_LEFT.
      */
     int clickpadButton(MotionEvent event) {
-        if (!clickpadBaselineValid || event.getPointerCount() <= 0)
+        if (event.getPointerCount() <= 0)
             return 0x110; // BTN_LEFT
-        int limit = Math.min(event.getPointerCount(), 2);
+        int limit = clickpadBaselineValid ? Math.min(event.getPointerCount(), 2) : 1;
         int slowestIndex = 0;
         float slowestSpeed = Float.MAX_VALUE;
         for (int i = 0; i < limit; i++) {
@@ -334,8 +396,11 @@ public final class Touchpad {
             }
         }
         float curX = toOutputX(event.getX(slowestIndex));
-        float mid = outputWidth > 0 ? outputWidth / 2f : curX;
-        return curX < mid ? 0x110 : 0x111; // BTN_LEFT / BTN_RIGHT
+        float curY = toOutputY(event.getY(slowestIndex));
+        boolean right = outputWidth > 0 && outputHeight > 0
+                && curX >= outputWidth / 2f
+                && curY >= outputHeight * (1f - RIGHT_BUTTON_AREA_HEIGHT);
+        return right ? 0x111 : 0x110; // BTN_RIGHT / BTN_LEFT
     }
 
     /** Map a pad (input-space) coordinate to the output space recognize() uses. */
@@ -501,6 +566,9 @@ public final class Touchpad {
             scrollInStream = false;
             streamDownTime = gestureEventTime;
             tapSuppressedInStream = gestureEventTime - lastScrollTime < scrollGuardMs;
+            // A press can arrive in the same frame as the touch-down, ahead of it.
+            clickInStream = heldButtons > 0;
+            resumeAfterButton = false;
         }
         // Keep the guard active until the last scrolling contact lifts, even if
         // one finger lifts/rejoins or the hardware briefly reports no contacts.
@@ -529,6 +597,13 @@ public final class Touchpad {
             clickpadBaselineValid = true;
         else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL)
             clickpadBaselineValid = false;
+
+        if (heldButtons > 0)
+            return trackHeldButton(event);
+        if (resumeAfterButton && action == MotionEvent.ACTION_MOVE) {
+            resumeAfterButton = false;
+            resumeFrom(event);
+        }
 
         // Once declined, stay declined: the gesture is mid-way through being
         // forwarded as touch and its pointer-up events still have to get there.
@@ -635,25 +710,7 @@ public final class Touchpad {
                         break;
                     }
 
-                    float[] smoothed = applySmoothing(rawDx, rawDy);
-                    float smoothDx = smoothed[0];
-                    float smoothDy = smoothed[1];
-
-                    if (smoothDx != 0f || smoothDy != 0f) {
-                        // 计算移动距离（平滑后的欧式距离）
-                        float distance = (float) Math.hypot(smoothDx, smoothDy);
-
-                        // 改进的加速度曲线：以 10px 为参考阈值，使小位移也能获得明显加速
-                        float speedFactor = distance / 10.0f;
-                        // 使用 sigmoid-like 曲线：scale = 1 + (strength - 1) * (speed / (1 + speed))
-                        float dynamicScale = 1.0f + (mouseAccelStrength - 1.0f) * (speedFactor / (1.0f + speedFactor));
-                        // 限制范围，防止失控（最大不超过 10 倍）
-                        dynamicScale = Math.max(0.3f, Math.min(10.0f, dynamicScale));
-
-                        float moveX = smoothDx * dynamicScale;
-                        float moveY = smoothDy * dynamicScale;
-                        sendMotion(moveX, moveY);
-                    }
+                    moveCursor(rawDx, rawDy);
 
                     lastX1 = x;
                     lastY1 = y;
@@ -804,6 +861,124 @@ public final class Touchpad {
             }
         }
         return true;
+    }
+
+    /** Smooth and accelerate one finger's raw delta into cursor motion. */
+    private void moveCursor(float rawDx, float rawDy) {
+        float[] smoothed = applySmoothing(rawDx, rawDy);
+        float smoothDx = smoothed[0];
+        float smoothDy = smoothed[1];
+        if (smoothDx == 0f && smoothDy == 0f)
+            return;
+
+        // 计算移动距离（平滑后的欧式距离）
+        float distance = (float) Math.hypot(smoothDx, smoothDy);
+
+        // 改进的加速度曲线：以 10px 为参考阈值，使小位移也能获得明显加速
+        float speedFactor = distance / 10.0f;
+        // 使用 sigmoid-like 曲线：scale = 1 + (strength - 1) * (speed / (1 + speed))
+        float dynamicScale = 1.0f + (mouseAccelStrength - 1.0f) * (speedFactor / (1.0f + speedFactor));
+        // 限制范围，防止失控（最大不超过 10 倍）
+        dynamicScale = Math.max(0.3f, Math.min(10.0f, dynamicScale));
+
+        sendMotion(smoothDx * dynamicScale, smoothDy * dynamicScale);
+    }
+
+    /**
+     * The stream while a physical button is held: click-drag. Whichever contact
+     * moved furthest this frame drives the cursor, so a thumb holding the press
+     * and an index finger dragging work as on a laptop; no contact count is
+     * classified, so a second finger can neither scroll, pinch nor right-tap.
+     */
+    private boolean trackHeldButton(MotionEvent event) {
+        int action = event.getActionMasked();
+        int count = event.getPointerCount();
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            Arrays.fill(heldTracked, false);
+            resetTouchpadState();
+            resetSmoothing();
+            return true;
+        }
+        int lifted = action == MotionEvent.ACTION_POINTER_UP ? event.getActionIndex() : -1;
+        int mover = -1;
+        float moverDistance = 0f, moverDx = 0f, moverDy = 0f;
+        for (int i = 0; i < count; i++) {
+            int id = event.getPointerId(i);
+            if (id < 0 || id >= MAX_HELD_CONTACTS)
+                continue;
+            if (i == lifted) {
+                heldTracked[id] = false;
+                continue;
+            }
+            float x = event.getX(i);
+            float y = event.getY(i);
+            if (!heldTracked[id]) {
+                // First sight of this contact since the press: anchor it.
+                heldTracked[id] = true;
+                heldPressX[id] = heldLastX[id] = x;
+                heldPressY[id] = heldLastY[id] = y;
+                continue;
+            }
+            float dx = x - heldLastX[id];
+            float dy = y - heldLastY[id];
+            heldLastX[id] = x;
+            heldLastY[id] = y;
+            float distance = dx * dx + dy * dy;
+            if (distance > moverDistance) {
+                moverDistance = distance;
+                mover = id;
+                moverDx = dx;
+                moverDy = dy;
+            }
+        }
+        // Keep the clickpad baseline current for a press that follows the release.
+        if (count >= 1) {
+            lastX1 = event.getX(0);
+            lastY1 = event.getY(0);
+        }
+        if (count >= 2) {
+            lastX2 = event.getX(1);
+            lastY2 = event.getY(1);
+        }
+        if (mover < 0)
+            return true;
+        if (pressMotionLocked) {
+            if (Math.hypot(heldLastX[mover] - heldPressX[mover],
+                    heldLastY[mover] - heldPressY[mover]) <= pressSlop)
+                return true;
+            pressMotionLocked = false;
+        }
+        moveCursor(moverDx, moverDy);
+        return true;
+    }
+
+    /**
+     * Re-anchor the contacts still down after a physical button was released, so
+     * the stream carries on as cursor motion or a scroll from where it is now.
+     * Taps stay off (clickInStream) until every finger has lifted.
+     */
+    private void resumeFrom(MotionEvent event) {
+        int count = event.getPointerCount();
+        resetTouchpadState();
+        resetSmoothing();
+        startX1 = lastX1 = event.getX(0);
+        startY1 = lastY1 = event.getY(0);
+        downTime1 = event.getEventTime();
+        if (count == 1) {
+            currentState = STATE_ONE_FINGER;
+        } else if (count == 2) {
+            currentState = STATE_TWO_FINGER;
+            isMultiFinger = true;
+            twoFingerStartX1 = lastX1;
+            twoFingerStartY1 = lastY1;
+            lastX2 = twoFingerStartX2 = event.getX(1);
+            lastY2 = twoFingerStartY2 = event.getY(1);
+        } else {
+            // Too late to forward a gesture that began as a click; swallow it
+            // until it is back down to one finger.
+            isMultiFinger = true;
+            multiFingerIgnored = true;
+        }
     }
 
     // ==================== 未处理手势 → 触摸转发 ====================

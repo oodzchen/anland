@@ -44,7 +44,7 @@ public class MotionEvent {
 import android.view.MotionEvent;
 import static android.view.MotionEvent.*;
 public class TouchpadTest implements Touchpad.Output {
- int buttons,scrolls,touches; Touchpad pad;
+ int buttons,scrolls,touches,clickpad; float moved; Touchpad pad;
  TouchpadTest(boolean tap,int guard){pad=new Touchpad(new android.content.Context(),this,true);pad.setTapFilter(tap,guard,false);}
  void e(int a,int i,long t,float... xy){pad.onTouch(new MotionEvent(a,i,t,xy));}
  void tap(long t){e(ACTION_DOWN,0,t,10,10);e(ACTION_UP,0,t+20,10,10);}
@@ -54,8 +54,11 @@ public class TouchpadTest implements Touchpad.Output {
   e(ACTION_POINTER_UP,firstLifts?0:1,t+30,10,30,30,30);
   e(ACTION_UP,0,t+40,firstLifts?30:10,30);
  }
+ // Immersive clickpad: resolve the button first, then tell the pad, as ImmersiveMode does.
+ void press(long t,float... xy){clickpad=pad.clickpadButton(new MotionEvent(ACTION_MOVE,0,t,xy));pad.onPhysicalButton(true,true);}
+ void release(){pad.onPhysicalButton(false,true);}
  void check(boolean ok,String name){if(!ok)throw new AssertionError(name);}
- public void onMotion(float x,float y){} public void onScroll(int a,float v){scrolls++;}
+ public void onMotion(float x,float y){moved+=Math.abs(x)+Math.abs(y);} public void onScroll(int a,float v){scrolls++;}
  public void onButton(int b,boolean p){buttons++;}
  public void onTouch(int a,int i,float x,float y){touches++;} public void onTouchFrame(){}
  public float cursorX(){return 100;} public float cursorY(){return 100;}
@@ -109,7 +112,39 @@ public class TouchpadTest implements Touchpad.Output {
   x.check(x.buttons==0,"movement arriving with release is not a tap");
   x=new TouchpadTest(true,0);x.scroll(1000,false);x.tap(1100);
   x.check(x.buttons==2,"default zero cooldown retains intentional post-scroll click");
-  System.out.println("PASS: touchpad regression scenarios including lagging contacts and pinch");
+  // Physical clickpad presses (immersive mode).
+  x=new TouchpadTest(true,0);x.e(ACTION_DOWN,0,1000,300,300);x.press(1100,300,300);
+  x.e(ACTION_MOVE,0,1120,303,302);x.e(ACTION_MOVE,0,1140,306,305);x.release();x.e(ACTION_UP,0,1200,306,305);
+  x.check(x.moved==0 && x.buttons==0,"finger rolling during a click neither moves the cursor nor taps");
+  x=new TouchpadTest(true,0);x.e(ACTION_DOWN,0,1000,300,300);x.press(1100,300,300);
+  for(int i=1;i<=10;i++)x.e(ACTION_MOVE,0,1100+i*20,300+i*10,300);
+  x.release();x.e(ACTION_UP,0,1400,400,300);
+  x.check(x.moved>0 && x.buttons==0,"click-drag past the press slop moves the cursor");
+  x=new TouchpadTest(true,0);x.press(1000,300,300);x.e(ACTION_DOWN,0,1000,300,300);x.release();x.e(ACTION_UP,0,1080,300,300);
+  x.check(x.buttons==0,"press in the touch-down frame adds no synthetic click");
+  x=new TouchpadTest(true,0);x.e(ACTION_DOWN,0,1000,300,300);x.press(1050,300,300);
+  x.e(ACTION_POINTER_DOWN,1,1060,300,300,315,305);x.e(ACTION_POINTER_UP,1,1100,300,300,315,305);
+  x.release();x.e(ACTION_UP,0,1150,300,300);
+  x.check(x.buttons==0,"contact split while pressing is not a right tap");
+  x=new TouchpadTest(true,0);x.pad.setMultiFingerGesturesDisabled(false);
+  x.e(ACTION_DOWN,0,1000,300,550);x.e(ACTION_POINTER_DOWN,1,1100,300,550,400,200);x.press(1200,300,550,400,200);
+  for(int i=1;i<=10;i++)x.e(ACTION_MOVE,0,1200+i*20,300,550,400+i*15,200);
+  x.release();x.e(ACTION_POINTER_UP,1,1500,300,550,550,200);x.e(ACTION_UP,0,1520,300,550);
+  x.check(x.moved>0 && x.touches==0 && x.scrolls==0 && x.buttons==0,"thumb holds the press, index drags the cursor");
+  x=new TouchpadTest(true,0);x.e(ACTION_DOWN,0,1000,300,300);x.press(1050,300,300);x.release();
+  for(int i=1;i<=5;i++)x.e(ACTION_MOVE,0,1100+i*20,300+i*10,300);
+  x.e(ACTION_UP,0,1250,350,300);
+  x.check(x.moved>0 && x.buttons==0,"after release the stream moves the cursor without tapping");
+  x.tap(1500);x.check(x.buttons==2,"the next stream taps again");
+  x=new TouchpadTest(true,0);x.pad.setOutputSize(1000,600);
+  x.e(ACTION_DOWN,0,1000,700,100);x.press(1100,700,100);x.check(x.clickpad==0x110,"right half, top: left button");
+  x.release();x.e(ACTION_UP,0,1200,700,100);
+  x.e(ACTION_DOWN,0,2000,700,550);x.press(2100,700,550);x.check(x.clickpad==0x111,"bottom-right area: right button");
+  x.release();x.e(ACTION_UP,0,2200,700,550);
+  x.e(ACTION_DOWN,0,3000,300,550);x.press(3100,300,550);x.check(x.clickpad==0x110,"bottom-left: left button");
+  x.release();x.e(ACTION_UP,0,3200,300,550);
+  x.press(4000,700,550);x.check(x.clickpad==0x111,"no baseline: the landing contact decides");
+  System.out.println("PASS: touchpad regression scenarios including lagging contacts, pinch and clickpad presses");
  }
 }'''
 }

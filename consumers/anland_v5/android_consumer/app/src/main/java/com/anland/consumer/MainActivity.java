@@ -226,7 +226,7 @@ public class MainActivity extends Activity
     // Touchpad for the pressing finger (the slowest contact, held still to click)
     // and pick left/right from its position, latching the choice here for the
     // whole press. Release always drops the latched button, so a finger drifting
-    // across the midline before lift-off cannot strand a held button.
+    // out of the button area before lift-off cannot strand a held button.
     private int lastTouchpadBtnPressed = 0;
 
     // Immersive mode: a root helper grabs the physical input devices so nothing
@@ -2610,7 +2610,7 @@ public class MainActivity extends Activity
      * (the slowest contact) and returns left/right from its position; that choice
      * is latched in {@link #lastTouchpadBtnPressed}. On RELEASE the latch is
      * dropped regardless of where the finger now rests, so a finger drifting
-     * across the midline cannot strand a held button.
+     * out of the button area cannot strand a held button.
      */
     private void updateTouchpadButtonStateFromEvent(MotionEvent event) {
         int action = event.getActionMasked();
