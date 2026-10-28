@@ -451,7 +451,8 @@ Steam 电源菜单中的选项：
 | `ANLAND_GAMESCOPE_ARGS` | 空 | 额外的 Gamescope 参数。 |
 | `ANLAND_MANGOAPP` | `auto` | `1`、`0` 或 `auto`（安装了 `mangoapp` 时开启）。 |
 | `ANLAND_XWAYLAND_COUNT` | `2` | Xwayland 服务器数量；Steam 自身界面单独使用一个。 |
-| `ANLAND_DESKTOP_CMD` | KDE Arch 入口 | 点击**切换到桌面**后运行的命令；设为空则不切换。未设置时依次使用 `kde-anland`、随游戏模式一起安装的 `producers/kde/Arch_v5/startup.sh` 副本。 |
+| `ANLAND_DESKTOP_SERVICE` | `desktop-session.service` | 点击**切换到桌面**后，若该系统单元存在（Droidspaces 的桌面会话）则启动它；软件包附带的 polkit 规则允许 `wheel` 组用户免密码启动。设为空则跳过。 |
+| `ANLAND_DESKTOP_CMD` | KDE Arch 入口 | 未使用桌面单元或其启动失败时，点击**切换到桌面**后运行的命令；设为空则不运行。未设置时依次使用 `kde-anland`、随游戏模式一起安装的 `producers/kde/Arch_v5/startup.sh` 副本。 |
 | `ANLAND_SOCKET` | `/run/display.sock` | daemon socket。 |
 
 要比较驱动性能，可以分别用 `ANLAND_GL_DRIVER=kgsl` 和 `ANLAND_GL_DRIVER=zink` 启动同一个游戏，在性能叠加层中观察帧时间。Steam 自身界面单独渲染，见 `ANLAND_STEAM_CEF`。

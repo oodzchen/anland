@@ -35,7 +35,7 @@ noextract=('anland-overlay.tar')
 sha256sums=('4bfaf31e29a8f9fdf231dc3bbb9b09b0ce07cae9fee7a01cfc86425ece796258'
             '2e654793357d00c5ec154de97b1b74584b5951742c5fe44a9a77ae4d38ab8f59'
             'SKIP'
-            'f1bfc1e12cba27a7e4cafd2b97a52a4e8323a7a47e2f32af0371008c56f12d5b')
+            'c7044095523b3706532cf04d331a9226fc75ac6fa76cec91b6045855d6d19e9f')
 
 require_aarch64() {
   [[ "$(uname -m)" == 'aarch64' && "${CARCH:-}" == 'aarch64' ]] || {

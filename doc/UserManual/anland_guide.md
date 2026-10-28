@@ -457,7 +457,8 @@ Set these in the environment or in `~/.config/anland/game-mode.conf` (`KEY=VALUE
 | `ANLAND_GAMESCOPE_ARGS` | empty | Extra Gamescope arguments. |
 | `ANLAND_MANGOAPP` | `auto` | `1`, `0`, or `auto` (on when `mangoapp` is installed). |
 | `ANLAND_XWAYLAND_COUNT` | `2` | Number of Xwayland servers; Steam's own UI uses a separate one. |
-| `ANLAND_DESKTOP_CMD` | KDE Arch entry | Command run after **Switch to Desktop**; empty disables the handoff. Unset, it uses `kde-anland`, else the copy of `producers/kde/Arch_v5/startup.sh` installed with game mode. |
+| `ANLAND_DESKTOP_SERVICE` | `desktop-session.service` | System unit started after **Switch to Desktop** when it exists (Droidspaces' desktop session); the package's polkit rule lets `wheel` users start it without a password. Empty skips it. |
+| `ANLAND_DESKTOP_CMD` | KDE Arch entry | Command run after **Switch to Desktop** when no desktop unit is used or it fails to start; empty disables it. Unset, it uses `kde-anland`, else the copy of `producers/kde/Arch_v5/startup.sh` installed with game mode. |
 | `ANLAND_SOCKET` | `/run/display.sock` | Daemon socket. |
 
 To compare drivers, start the same game with `ANLAND_GL_DRIVER=kgsl` and with `ANLAND_GL_DRIVER=zink` and watch the frame time in the performance overlay. Steam's own interface renders separately; see `ANLAND_STEAM_CEF`.

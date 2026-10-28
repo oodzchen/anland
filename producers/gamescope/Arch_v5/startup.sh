@@ -335,8 +335,16 @@ STEAM_UI_HEIGHT="${ANLAND_STEAM_UI_HEIGHT:-800}"
 [[ "$STEAM_UI_HEIGHT" =~ ^[0-9]+$ ]] || die 'ANLAND_STEAM_UI_HEIGHT must be a number of pixels (0 lets Steam choose)'
 XWAYLAND_COUNT="${ANLAND_XWAYLAND_COUNT:-2}"
 [[ "$XWAYLAND_COUNT" =~ ^[1-9]$ ]] || die 'ANLAND_XWAYLAND_COUNT must be 1-9'
-# An empty ANLAND_DESKTOP_CMD disables the desktop handoff. Unset, it is the KDE Arch entry:
-# kde-anland from the KWin package, the copy in this package, or a checkout's script.
+# The desktop returns through the system unit that normally starts it (Droidspaces'
+# desktop-session.service): it brings the login session and /etc/environment back with it.
+# An empty ANLAND_DESKTOP_SERVICE skips it.
+DESKTOP_SERVICE="${ANLAND_DESKTOP_SERVICE-desktop-session.service}"
+if [[ -n ${ANLAND_DESKTOP_CMD+x} ]] || [[ -z "$DESKTOP_SERVICE" ]] ||
+   ! systemctl cat -- "$DESKTOP_SERVICE" >/dev/null 2>&1; then
+    DESKTOP_SERVICE=
+fi
+# Otherwise, or if starting the unit fails, ANLAND_DESKTOP_CMD runs (empty disables it);
+# unset, it is the KDE Arch entry: kde-anland, the copy in this package, or a checkout's.
 if [[ -n ${ANLAND_DESKTOP_CMD+x} ]]; then
     read -ra DESKTOP_CMD <<<"$ANLAND_DESKTOP_CMD"
 else
@@ -372,8 +380,11 @@ if [[ $CHECK == 1 ]]; then
         printf 'client          %s\n' "${CLIENT[*]}"
     fi
     printf 'gamescope       %s (mangoapp=%s, xwayland-count=%s)\n' "${GAMESCOPE_BIN:-not found}" "$MANGOAPP" "$XWAYLAND_COUNT"
+    [[ -z "$DESKTOP_SERVICE" ]] || printf 'desktop handoff systemctl start %s\n' "$DESKTOP_SERVICE"
     if [[ ${#DESKTOP_CMD[@]} == 0 && -n ${ANLAND_DESKTOP_CMD+x} ]]; then
         printf 'desktop handoff disabled\n'
+    elif [[ ${#DESKTOP_CMD[@]} == 0 && -n "$DESKTOP_SERVICE" ]]; then
+        :
     elif [[ ${#DESKTOP_CMD[@]} == 0 ]]; then
         printf 'desktop handoff not found (install the KDE Arch package or set ANLAND_DESKTOP_CMD)\n'
     else
@@ -483,17 +494,25 @@ if [[ "$REQUEST" != desktop ]]; then
     [[ ${#HELPERS[@]} == 0 ]] || kill "${HELPERS[@]}" 2>/dev/null || true
     exit "$rc"
 fi
-if [[ ${#DESKTOP_CMD[@]} == 0 ]] || ! command -v "${DESKTOP_CMD[0]}" >/dev/null; then
-    note "desktop command not found: ${DESKTOP_CMD[0]:-none} (set ANLAND_DESKTOP_CMD); game mode ended"
-    [[ ${#HELPERS[@]} == 0 ]] || kill "${HELPERS[@]}" 2>/dev/null || true
-    exit 0
-fi
 for _ in {1..100}; do
     pgrep -u "$(id -u)" -x gamescope >/dev/null || pgrep -u "$(id -u)" -x Xwayland >/dev/null || break
     sleep 0.1
 done
 # The desktop entry takes the same lock and picks its own drivers.
 exec 9>&-
+if [[ -n "$DESKTOP_SERVICE" ]]; then
+    note "switching to the desktop: systemctl start $DESKTOP_SERVICE"
+    # Game mode has no polkit agent; the packaged rule lets wheel users start this unit.
+    if systemctl --no-ask-password start -- "$DESKTOP_SERVICE"; then
+        exit 0
+    fi
+    note "could not start $DESKTOP_SERVICE; trying the desktop command"
+fi
+if [[ ${#DESKTOP_CMD[@]} == 0 ]] || ! command -v "${DESKTOP_CMD[0]}" >/dev/null; then
+    note "desktop command not found: ${DESKTOP_CMD[0]:-none} (set ANLAND_DESKTOP_CMD); game mode ended"
+    [[ ${#HELPERS[@]} == 0 ]] || kill "${HELPERS[@]}" 2>/dev/null || true
+    exit 0
+fi
 unset GAMESCOPE_FALLBACK_APPID GAMESCOPE_STEAM_UI_HEIGHT STEAM_MULTIPLE_XWAYLANDS MANGOHUD_CONFIGFILE STEAM_USE_MANGOAPP \
     STEAM_MANGOAPP_PRESETS_SUPPORTED STEAM_MANGOAPP_HORIZONTAL_SUPPORTED ANLAND_GAME_MODE_DBUS
 export PATH="${PATH#"$STUB_DIR":}"

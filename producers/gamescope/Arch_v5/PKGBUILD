@@ -21,6 +21,7 @@ provides=('gamescope')
 conflicts=('gamescope')
 options=('!strip' '!debug')
 _session_files=(startup.sh switch-to-game-mode.sh anland-game-mode.desktop kde-startup.sh
+                anland-game-mode.rules
                 anland-game-mode.service game-mode.conf.example
                 steamos-session-select steamos-update steamos-select-branch
                 jupiter-biosupdate steamos-set-timezone)
@@ -148,6 +149,7 @@ package() {
   # producers/kde/Arch_v5/startup.sh: the desktop handoff target when kde-anland is absent.
   install -Dm755 "$srcdir/kde-startup.sh" "$pkgdir/usr/lib/anland-game-mode/kde-startup"
   install -Dm644 "$srcdir/anland-game-mode.desktop" "$pkgdir/usr/share/applications/anland-game-mode.desktop"
+  install -Dm644 "$srcdir/anland-game-mode.rules" "$pkgdir/usr/share/polkit-1/rules.d/50-anland-game-mode.rules"
   for name in steamos-session-select steamos-update steamos-select-branch \
       jupiter-biosupdate steamos-set-timezone; do
     install -Dm755 "$srcdir/$name" "$pkgdir/usr/lib/anland-game-mode/bin/$name"

@@ -45,7 +45,7 @@ STAGE="$RUN/stage"
 SOURCES="$RUN/sources"
 mkdir -p "$STAGE" "$SOURCES"
 for name in PKGBUILD startup.sh switch-to-game-mode.sh anland-game-mode.desktop \
-    anland-game-mode.service game-mode.conf.example; do
+    anland-game-mode.rules anland-game-mode.service game-mode.conf.example; do
     cp "$HERE/$name" "$STAGE/"
 done
 cp "$HERE"/bin/* "$STAGE/"
