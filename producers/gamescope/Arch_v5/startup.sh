@@ -16,8 +16,14 @@ note() { printf 'anland-game-mode: %s\n' "$*" >&2; }
 
 steam_client() {
     local state="$ANLAND_GAME_MODE_STATE" rc started quick=0
-    local -a args=(-gamepadui -steamdeck -steamos3 -no-cef-sandbox -cef-ozone-platform=x11
-                   -cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan) extra=()
+    local -a args=(-gamepadui -steamdeck -steamos3 -no-cef-sandbox -cef-ozone-platform=x11) extra=()
+    # GPU web views export their frames through GBM dma-bufs, which fail on the Adreno render
+    # node (black UI with kgsl, GPU process crashes with zink); games are not affected.
+    if [[ ${ANLAND_STEAM_CEF:-software} == gpu ]]; then
+        args+=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
+    else
+        args+=(-cef-disable-gpu)
+    fi
     export STEAMOS_STEAM_SHUTDOWN_SENTINEL="$state/steam-shutdown"
     export STEAMOS_STEAM_REBOOT_SENTINEL="$state/steam-reboot"
     export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
@@ -318,6 +324,10 @@ case "${ANLAND_MANGOAPP:-auto}" in
     0) ;;
     *) die 'ANLAND_MANGOAPP must be auto, 0 or 1' ;;
 esac
+case "${ANLAND_STEAM_CEF:-software}" in
+    software|gpu) ;;
+    *) die 'ANLAND_STEAM_CEF must be software or gpu' ;;
+esac
 XWAYLAND_COUNT="${ANLAND_XWAYLAND_COUNT:-2}"
 [[ "$XWAYLAND_COUNT" =~ ^[1-9]$ ]] || die 'ANLAND_XWAYLAND_COUNT must be 1-9'
 # An empty ANLAND_DESKTOP_CMD disables the desktop handoff.
@@ -339,6 +349,7 @@ if [[ $CHECK == 1 ]]; then
         printf 'Steam           %s (%s, steamrtarm64=%s)\n' "${ANLAND_STEAM_BIN:-not found}" \
             "$(origin ANLAND_STEAM_BIN)" "${ANLAND_STEAM_RT:-0}"
         printf 'Steam root      %s\n' "${STEAM_ROOT:-}"
+        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-software}"
     else
         printf 'client          %s\n' "${CLIENT[*]}"
     fi

@@ -445,6 +445,7 @@ Steam 电源菜单中的选项：
 | `ANLAND_STEAM_BIN` | 自动检测 | Steam 可执行文件。找不到 ARM64 客户端时，使用 `PATH` 中的 `steam`。 |
 | `ANLAND_STEAM_BETA` | `package/beta` | 作为 `-clientbeta` 传入的 Steam 客户端频道。 |
 | `ANLAND_STEAM_ARGS` | 空 | 额外的 Steam 参数，按空格分隔。 |
+| `ANLAND_STEAM_CEF` | `software` | Steam 自身界面的渲染方式：`software`，或 `gpu`（ANGLE + Vulkan）。目前在 Adreno 上，GPU 网页视图因 GBM dma-buf 导出失败而黑屏；游戏不受影响。 |
 | `ANLAND_STEAM_TU_DEBUG` | `sysmem` | 只对 Steam 客户端生效的 `TU_DEBUG`；不设为 `sysmem` 时，Steam 网页界面的 GPU 进程会在 Turnip 上崩溃。设为空则保留继承的值。原来的值会导出为 `STEAM_ARM64_GAME_TU_DEBUG`，供 Proton 包装脚本为游戏恢复。 |
 | `ANLAND_GAMESCOPE_ARGS` | 空 | 额外的 Gamescope 参数。 |
 | `ANLAND_MANGOAPP` | `auto` | `1`、`0` 或 `auto`（安装了 `mangoapp` 时开启）。 |
@@ -452,7 +453,7 @@ Steam 电源菜单中的选项：
 | `ANLAND_DESKTOP_CMD` | `kde-anland` | 点击**切换到桌面**后运行的命令；设为空则不切换。 |
 | `ANLAND_SOCKET` | `/run/display.sock` | daemon socket。 |
 
-要比较驱动性能，可以分别用 `ANLAND_GL_DRIVER=kgsl` 和 `ANLAND_GL_DRIVER=zink` 启动同一个游戏，在性能叠加层中观察帧时间。Steam 自身界面始终通过 ANGLE 在 Vulkan 上渲染。
+要比较驱动性能，可以分别用 `ANLAND_GL_DRIVER=kgsl` 和 `ANLAND_GL_DRIVER=zink` 启动同一个游戏，在性能叠加层中观察帧时间。Steam 自身界面单独渲染，见 `ANLAND_STEAM_CEF`。
 
 ---
 

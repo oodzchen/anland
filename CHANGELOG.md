@@ -41,3 +41,4 @@
 - 修复 Steam 大屏幕启动后黑屏退出：
   - gamescope Anland 后端的 `PollState` 每帧都返回 true，gamescope 因此每帧重发显示模式，Steam 每秒收到 60 次「屏幕已变更」。现在只在输出尺寸或刷新率变化时返回 true，其他情况只请求重绘。
   - Steam 客户端补齐 DroidDeck 式环境：`STEAM_RUNTIME`/`STEAM_STEAMRT_RECURSION_GUARD` 和 `steamrtarm64` 库路径；去掉 im-wayland 的 GTK 输入法缓存（否则网页界面进程会因 Plasma 的 `gtk-im-module=wayland` 崩溃）；客户端默认 `TU_DEBUG=sysmem`（否则 GPU 进程崩溃）；容器内关闭 SDL 的 udev。
+  - Steam 界面默认使用软件渲染（`-cef-disable-gpu`）：在 Adreno 渲染节点上，CEF 的 GPU 路径通过 GBM 导出 dma-buf 会失败，kgsl 下界面全黑，zink 下 GPU 进程反复崩溃。可通过 `ANLAND_STEAM_CEF=gpu` 切回 GPU 渲染。

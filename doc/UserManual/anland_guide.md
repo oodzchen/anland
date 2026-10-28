@@ -451,6 +451,7 @@ Set these in the environment or in `~/.config/anland/game-mode.conf` (`KEY=VALUE
 | `ANLAND_STEAM_BIN` | detected | Steam executable. Falls back to `steam` in `PATH` when no ARM64 client is found. |
 | `ANLAND_STEAM_BETA` | `package/beta` | Steam client channel passed as `-clientbeta`. |
 | `ANLAND_STEAM_ARGS` | empty | Extra Steam arguments, split on spaces. |
+| `ANLAND_STEAM_CEF` | `software` | How Steam's own interface renders: `software`, or `gpu` (ANGLE on Vulkan). GPU web views currently render black on Adreno because their GBM dma-buf export fails; games are not affected. |
 | `ANLAND_STEAM_TU_DEBUG` | `sysmem` | `TU_DEBUG` for the Steam client only; without `sysmem` Steam's web UI GPU process crashes on Turnip. Empty keeps the inherited value. The original value is exported as `STEAM_ARM64_GAME_TU_DEBUG` for Proton wrappers that restore it for games. |
 | `ANLAND_GAMESCOPE_ARGS` | empty | Extra Gamescope arguments. |
 | `ANLAND_MANGOAPP` | `auto` | `1`, `0`, or `auto` (on when `mangoapp` is installed). |
@@ -458,7 +459,7 @@ Set these in the environment or in `~/.config/anland/game-mode.conf` (`KEY=VALUE
 | `ANLAND_DESKTOP_CMD` | `kde-anland` | Command run after **Switch to Desktop**; empty disables the handoff. |
 | `ANLAND_SOCKET` | `/run/display.sock` | Daemon socket. |
 
-To compare drivers, start the same game with `ANLAND_GL_DRIVER=kgsl` and with `ANLAND_GL_DRIVER=zink` and watch the frame time in the performance overlay. Steam's own interface always renders through ANGLE on Vulkan.
+To compare drivers, start the same game with `ANLAND_GL_DRIVER=kgsl` and with `ANLAND_GL_DRIVER=zink` and watch the frame time in the performance overlay. Steam's own interface renders separately; see `ANLAND_STEAM_CEF`.
 
 ---
 
