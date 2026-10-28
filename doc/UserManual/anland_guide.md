@@ -36,6 +36,7 @@ PRoot, chroot, and Droidspaces are different ways to host a Linux user space. Wh
   - [Build from source](#source-build)
   - [Use prebuilt packages or a RootFS](#prebuilt)
 - [🚀 Step 4: Start the desktop](#start-desktop)
+- [🎮 Game mode: Steam Big Picture without a desktop](#game-mode)
 - [🛠️ Troubleshooting](#troubleshooting)
 
 ---
@@ -278,6 +279,7 @@ This installation method is provided by the Anland project. Use it when you need
    | KDE Plasma | Ubuntu 26.04 | `producers/kde/ubuntu2604_v5` |
    | KDE Plasma | Fedora 43 | `producers/kde/Fedora43_v5` |
    | KDE Plasma | Arch Linux | `producers/kde/Arch_v5` |
+   | Steam game mode (Gamescope) | Arch Linux | `producers/gamescope/Arch_v5`, see [Game mode](#game-mode) |
    | GNOME | Debian 13 | `producers/gnome/Debian13_v5` |
    | GNOME | Ubuntu 26.04 | `producers/gnome/Ubuntu2604_v5` |
 
@@ -384,6 +386,77 @@ The desktop appears automatically once the consumer and producer are connected.
 > [!IMPORTANT]
 >
 > Do not start the session with your distribution's unpatched `kwin_wayland` or Mutter. A normal Wayland compositor will not submit frames to Anland even if it starts successfully.
+
+---
+
+<a id="game-mode"></a>
+
+## 🎮 Game mode: Steam Big Picture without a desktop
+
+Game mode works like SteamOS's Gaming Mode. Gamescope renders straight into the Anland window through its Anland backend and runs Steam Big Picture (`-gamepadui -steamos3`); KWin and Plasma are not started. It is available for Arch Linux ARM (aarch64), and Droidspaces is the tested runtime.
+
+**Before you start**
+
+- The ARM64 Steam client is already installed in the container, for example under `~/.local/share/Steam/steamrtarm64/steam`. Installing it and choosing its update channel follows [DroidDeck](https://github.com/Droid-Deck/DroidDeck); Anland does not install Steam.
+- In Droidspaces, **GPU Access** and **Anland Display** are on; **Configure VirGL 3D Acceleration** and **Configure PulseAudio** are off. A user other than root must be in the `droidspaces-gpu` group.
+- For Steam Input, the user can read `/dev/input/event*` and `/dev/hidraw*` and write `/dev/uinput`. Turn on immersive mode (and auto-enter) in the Anland app so that Android releases the controller to the container.
+- For audio, install `pipewire`, `wireplumber` and `pipewire-pulse`. Install `mangohud` for Steam's performance overlay.
+
+**Build and install**
+
+```sh
+cd producers/gamescope/Arch_v5
+INSTALL=1 ./build.sh
+```
+
+The package `gamescope-anland` replaces the distribution's `gamescope`. It reuses the Gamescope patch from `producers/gamescope/SteamOS_v5` and builds the patched Xwayland from `producers/kde/Arch_v5`. If that Xwayland is already installed, add `BUILD_XWAYLAND=0`. `JOBS` defaults to one less than the number of CPU cores.
+
+**Start**
+
+```sh
+anland-game-mode --check   # show the detected Steam, drivers and conflicts
+anland-game-mode           # start game mode, then select Launch Anland in Droidspaces
+anland-game-mode -- vkcube # test the display path with another client
+```
+
+The distribution's `gamescope` package has no Anland backend. `anland-game-mode` checks `gamescope --help` for the `anland` backend before starting. It reports separately when Gamescope is not installed, is the stock package, or cannot start because of a missing library, and prints the build command for `gamescope-anland`. `GAMESCOPE_BIN` selects another build.
+
+Steam's power menu works as follows:
+
+- **Switch to Desktop** ends game mode and starts KDE Plasma (`kde-anland`) on the same socket. The Android window stays open and reconnects. `kde-anland` is installed by the KDE package from `producers/kde/Arch_v5`.
+- **Restart** restarts Steam.
+- **Shut Down** ends game mode.
+
+To start game mode at login, run `systemctl --user enable anland-game-mode.service`.
+
+**Drivers and Droidspaces settings**
+
+Game mode keeps the values that are already set, including environment variables entered under **Advanced Options** in Droidspaces (also read from `/run/droidspaces.env`). It only fills in missing ones:
+
+- Without `MESA_LOADER_DRIVER_OVERRIDE`/`GALLIUM_DRIVER`, it uses the native kgsl driver when `/dev/kgsl-3d0` and `kgsl_dri.so` exist, otherwise Zink.
+- Without `VK_DRIVER_FILES`/`VK_ICD_FILENAMES`, it uses the Turnip ICD.
+- `TU_DEBUG` (such as Droidspaces' `noconform`) is kept.
+- `GALLIUM_DRIVER=virpipe` (VirGL) is reported as a conflict. The Droidspaces PulseAudio server is ignored, because Anland audio uses PipeWire.
+
+**Settings**
+
+Set these in the environment or in `~/.config/anland/game-mode.conf` (`KEY=VALUE` lines; an example is installed at `/usr/share/doc/gamescope-anland/game-mode.conf.example`). The environment wins over the file, and the file wins over `/run/droidspaces.env`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ANLAND_GL_DRIVER` | `inherit` | `inherit` keeps the existing driver; `kgsl` or `zink` forces one for game mode. |
+| `STEAM_ROOT` | detected | Steam data directory. Searched in `~/.steam/root`, `~/.steam/steam`, `~/.local/share/Steam`, `~/.steam/debian-installation`. |
+| `ANLAND_STEAM_BIN` | detected | Steam executable. Falls back to `steam` in `PATH` when no ARM64 client is found. |
+| `ANLAND_STEAM_BETA` | `package/beta` | Steam client channel passed as `-clientbeta`. |
+| `ANLAND_STEAM_ARGS` | empty | Extra Steam arguments, split on spaces. |
+| `ANLAND_STEAM_TU_DEBUG` | unset | `TU_DEBUG` for the Steam client only, for example `sysmem`. |
+| `ANLAND_GAMESCOPE_ARGS` | empty | Extra Gamescope arguments. |
+| `ANLAND_MANGOAPP` | `auto` | `1`, `0`, or `auto` (on when `mangoapp` is installed). |
+| `ANLAND_XWAYLAND_COUNT` | `2` | Number of Xwayland servers; Steam's own UI uses a separate one. |
+| `ANLAND_DESKTOP_CMD` | `kde-anland` | Command run after **Switch to Desktop**; empty disables the handoff. |
+| `ANLAND_SOCKET` | `/run/display.sock` | Daemon socket. |
+
+To compare drivers, start the same game with `ANLAND_GL_DRIVER=kgsl` and with `ANLAND_GL_DRIVER=zink` and watch the frame time in the performance overlay. Steam's own interface always renders through ANGLE on Vulkan.
 
 ---
 

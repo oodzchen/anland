@@ -26,3 +26,14 @@
 - 设置 → 通用 → 息屏新增「保持屏幕常亮」开关，默认开启，与原行为一致。
 - 关闭后，桌面在前台时按系统的息屏时间自动息屏锁屏。
 - 沉浸模式下被独占的输入设备的操作仍计为用户活动：息屏倒计时从最后一次输入开始计算（最多延后约 5 秒），使用中不会息屏。
+
+### Arch Linux 游戏模式：Gamescope 直出 Steam 大屏幕
+
+- 新增 `producers/gamescope/Arch_v5`，构建 Arch Linux ARM 版 `gamescope-anland`，复用 SteamOS 版的 Gamescope 补丁和 KDE Arch 版的 Xwayland。
+- 新增 `anland-game-mode`：Gamescope 通过 Anland 后端直接输出，运行 Steam `-gamepadui -steamos3`，不启动 KWin。
+  - Steam 电源菜单：「切换到桌面」在同一个 socket 上接力启动 KDE（`kde-anland`）；「重启」重启 Steam；「关机」结束游戏模式。Steam 更新产生的 rc 42 会自动重启 Steam。
+  - 保留 Droidspaces Advanced Options 和 `/run/droidspaces.env` 中已设置的驱动变量，只补缺失项。`ANLAND_GL_DRIVER=kgsl|zink` 可强制指定驱动。VirGL 和 Droidspaces PulseAudio 冲突会被检测并提示。
+  - 自动检测 Steam 路径，也可通过 `STEAM_ROOT`、`ANLAND_STEAM_BIN` 或 `~/.config/anland/game-mode.conf` 指定。`--check` 用于自检。
+  - 启动前检查 gamescope 是否带 Anland 后端，并分别提示未安装、发行版原版（可识别 pacman 包名）、缺少动态库等情况，同时给出构建命令。
+  - SteamOS 桩脚本（`steamos-session-select` 等）只在会话内通过 PATH 生效，不占用 `/usr/bin`。
+- KDE Arch 包额外把 `startup.sh` 安装为 `/usr/bin/kde-anland`（pkgrel 1.2）。

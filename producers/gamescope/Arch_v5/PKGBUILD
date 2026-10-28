@@ -1,0 +1,131 @@
+# Arch Linux ARM aarch64: current Gamescope and dependency default branches.
+pkgname=gamescope-anland
+pkgver=0
+pkgrel=1
+pkgdesc='Gamescope with the Anland backend and a Steam game mode session'
+arch=('aarch64')
+url='https://github.com/ValveSoftware/gamescope'
+license=('BSD-2-Clause')
+depends=('xorg-xwayland' 'libavif' 'libxres' 'xcb-util-errors' 'xcb-util-wm' 'libxcomposite'
+         'libxcursor' 'libxdamage' 'libxi' 'libxmu' 'libxtst' 'libxxf86vm' 'libxkbcommon' 'pixman'
+         'libinput' 'seatd' 'libpipewire' 'libdecor' 'libei' 'luajit' 'libdrm' 'libcap' 'hwdata'
+         'sdl2' 'vulkan-icd-loader' 'wayland' 'bash' 'util-linux' 'procps-ng' 'dbus')
+makedepends=('meson' 'ninja' 'git' 'python' 'pkgconf' 'gcc' 'glslang' 'vulkan-headers'
+             'wayland-protocols' 'cmake' 'patch')
+optdepends=('mangohud: Steam performance overlay (mangoapp)'
+            'pipewire: Anland audio'
+            'wireplumber: Anland audio'
+            'pipewire-pulse: audio for PulseAudio clients such as Steam')
+provides=('gamescope')
+conflicts=('gamescope')
+options=('!strip' '!debug')
+_session_files=(startup.sh anland-game-mode.service game-mode.conf.example
+                steamos-session-select steamos-update steamos-select-branch
+                jupiter-biosupdate steamos-set-timezone)
+source=('gamescope::git+https://github.com/ValveSoftware/gamescope.git'
+        'gamescope.patch' 'anland-overlay.tar' 'sources.conf' "${_session_files[@]}")
+noextract=('anland-overlay.tar')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+for _name in "${_session_files[@]}"; do sha256sums+=('SKIP'); done
+_dependency_paths=()
+_dependency_names=()
+declare -A _seen_paths=()
+while read -r _path _url _extra || [[ -n "$_path" ]]; do
+  [[ -z "$_path" || "$_path" == \#* ]] && continue
+  [[ -z "$_extra" && "$_url" == https://*.git ]] || return 1
+  if [[ "$_path" == . ]]; then
+    [[ "$_url" == https://github.com/ValveSoftware/gamescope.git ]] || return 1
+    continue
+  fi
+  [[ -z "${_seen_paths[$_path]:-}" ]] || { error 'Duplicate dependency path'; return 1; }
+  _seen_paths[$_path]=1
+  [[ "$_path" =~ ^(src|subprojects|thirdparty)/[a-zA-Z0-9_-]+$ ]] || return 1
+  _name="anland-dep-${#_dependency_names[@]}"
+  _dependency_paths+=("$_path")
+  _dependency_names+=("$_name")
+  source+=("$_name::git+$_url")
+  sha256sums+=('SKIP')
+done < "$startdir/sources.conf"
+[[ ${#_dependency_names[@]} -gt 0 ]] || { error 'Empty dependency source list'; return 1; }
+unset _path _url _extra _name _seen_paths
+
+pkgver() {
+  cd "$srcdir/gamescope"
+  local description
+  description="$(git describe --long --tags 2>/dev/null || true)"
+  if [[ "$description" =~ ^v?([0-9]+(\.[0-9]+)+)-([0-9]+)-g([0-9a-f]+)$ ]]; then
+    printf '%s.r%s.g%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
+  else
+    printf '0.0.0.r%s.g%s\n' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  fi
+}
+
+prepare() {
+  local tree="$srcdir/gamescope" i destination
+  [[ -f "$tree/meson.build" ]] || return 1
+  for i in "${!_dependency_names[@]}"; do
+    destination="$tree/${_dependency_paths[i]}"
+    rm -rf "$destination"
+    mkdir -p "$(dirname "$destination")"
+    cp -a "$srcdir/${_dependency_names[i]}" "$destination" || return 1
+  done
+  # Existing subproject trees need the wrap packagefiles overlays explicitly.
+  python3 - "$tree" <<'PY' || return 1
+import configparser, shutil, sys
+from pathlib import Path, PurePosixPath
+root = Path(sys.argv[1])/'subprojects'
+for wrap in sorted(root.glob('*.wrap')):
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(wrap)
+    if not config.has_section('wrap-git'):
+        continue
+    section = config['wrap-git']
+    overlay = section.get('patch_directory')
+    if not overlay:
+        continue
+    directory = section.get('directory', wrap.stem)
+    for name in (overlay, directory):
+        path = PurePosixPath(name)
+        if path.is_absolute() or '..' in path.parts:
+            raise ValueError('Unsafe overlay: '+name)
+    shutil.copytree(root/'packagefiles'/overlay, root/directory, dirs_exist_ok=True)
+PY
+  patch --batch --forward --fuzz=2 --no-backup-if-mismatch -Np1 -d "$tree" -i "$srcdir/gamescope.patch" || return 1
+  mkdir -p "$tree/src/Backends/anland"
+  tar -xf "$srcdir/anland-overlay.tar" -C "$tree/src/Backends/anland" || return 1
+}
+
+build() {
+  meson setup "$srcdir/build" "$srcdir/gamescope" \
+    --prefix=/usr --libdir=lib --buildtype=release --wrap-mode=nodownload \
+    -Denable_openvr_support=false -Denable_tests=false -Dbenchmark=disabled || return 1
+  meson compile -C "$srcdir/build" -j "${JOBS:-2}"
+}
+
+check() {
+  "$srcdir/build/src/gamescope" --version || return 1
+  ldd "$srcdir/build/src/gamescope" \
+    "$srcdir/build/layer/libVkLayer_FROG_gamescope_wsi_aarch64.so" > "$srcdir/build-ldd.log" || return 1
+  if grep -q 'not found' "$srcdir/build-ldd.log"; then
+    error 'Runtime library missing'; return 1
+  fi
+}
+
+package() {
+  local name
+  # Installs the binaries, WSI layer and default scripts/looks; subprojects stay static.
+  meson install -C "$srcdir/build" --destdir "$pkgdir" --skip-subprojects
+  install -Dm644 "$srcdir/gamescope/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm755 "$srcdir/startup.sh" "$pkgdir/usr/bin/anland-game-mode"
+  for name in steamos-session-select steamos-update steamos-select-branch \
+      jupiter-biosupdate steamos-set-timezone; do
+    install -Dm755 "$srcdir/$name" "$pkgdir/usr/lib/anland-game-mode/bin/$name"
+  done
+  install -Dm644 "$srcdir/anland-game-mode.service" "$pkgdir/usr/lib/systemd/user/anland-game-mode.service"
+  install -Dm644 "$srcdir/game-mode.conf.example" "$pkgdir/usr/share/doc/$pkgname/game-mode.conf.example"
+  install -Dm644 "$srcdir/sources.conf" "$pkgdir/usr/share/doc/$pkgname/sources.conf"
+  # Keep the installed-file verification manifest, excluding itself.
+  (cd "$pkgdir" && find . -type f ! -path "./usr/share/doc/$pkgname/INSTALLED-SHA256SUMS" \
+    -print0 | sort -z | xargs -0 sha256sum | sed 's|  \./|  /|') \
+    > "$pkgdir/usr/share/doc/$pkgname/INSTALLED-SHA256SUMS"
+}
