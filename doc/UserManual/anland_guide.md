@@ -452,6 +452,7 @@ Set these in the environment or in `~/.config/anland/game-mode.conf` (`KEY=VALUE
 | `ANLAND_STEAM_BETA` | `package/beta` | Steam client channel passed as `-clientbeta`. |
 | `ANLAND_STEAM_ARGS` | empty | Extra Steam arguments, split on spaces. |
 | `ANLAND_STEAM_CEF` | `software` | How Steam's own interface renders: `software` (complete, but animations stutter because Chromium's compositor uses a whole core) or `vulkan` (experimental: smooth, but Steam's side menu and Quick Access do not appear). Games are not affected. |
+| `ANLAND_STEAM_UI_HEIGHT` | `800` | Height Steam's interface renders at; the width follows the screen's aspect ratio. Lower values respond faster with software rendering but make text softer; `0` lets Steam choose (1920×1080). Games are not affected. |
 | `ANLAND_STEAM_TU_DEBUG` | `sysmem` | `TU_DEBUG` for the Steam client only; without `sysmem` Steam's web UI GPU process crashes on Turnip. Empty keeps the inherited value. The original value is exported as `STEAM_ARM64_GAME_TU_DEBUG` for Proton wrappers that restore it for games. |
 | `ANLAND_GAMESCOPE_ARGS` | empty | Extra Gamescope arguments. |
 | `ANLAND_MANGOAPP` | `auto` | `1`, `0`, or `auto` (on when `mangoapp` is installed). |

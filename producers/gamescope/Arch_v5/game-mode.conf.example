@@ -16,6 +16,9 @@
 # Steam's own UI: software (default; complete, animations stutter) or vulkan
 # (experimental; smooth, but Steam's side menu and Quick Access stay invisible).
 #ANLAND_STEAM_CEF=software
+# Height Steam's UI renders at, width following the screen (0 lets Steam choose).
+# Lower responds faster in software rendering; text gets softer.
+#ANLAND_STEAM_UI_HEIGHT=800
 # TU_DEBUG for the Steam client only (default sysmem); empty keeps the inherited value.
 #ANLAND_STEAM_TU_DEBUG=sysmem
 

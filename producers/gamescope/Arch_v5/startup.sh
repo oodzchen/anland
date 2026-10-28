@@ -330,6 +330,9 @@ case "${ANLAND_STEAM_CEF:-software}" in
     vulkan|software) ;;
     *) die 'ANLAND_STEAM_CEF must be vulkan or software' ;;
 esac
+# Software web views cost one core whatever the size, so a smaller UI responds faster.
+STEAM_UI_HEIGHT="${ANLAND_STEAM_UI_HEIGHT:-800}"
+[[ "$STEAM_UI_HEIGHT" =~ ^[0-9]+$ ]] || die 'ANLAND_STEAM_UI_HEIGHT must be a number of pixels (0 lets Steam choose)'
 XWAYLAND_COUNT="${ANLAND_XWAYLAND_COUNT:-2}"
 [[ "$XWAYLAND_COUNT" =~ ^[1-9]$ ]] || die 'ANLAND_XWAYLAND_COUNT must be 1-9'
 # An empty ANLAND_DESKTOP_CMD disables the desktop handoff. Unset, it is the KDE Arch entry:
@@ -363,7 +366,8 @@ if [[ $CHECK == 1 ]]; then
         printf 'Steam           %s (%s, steamrtarm64=%s)\n' "${ANLAND_STEAM_BIN:-not found}" \
             "$(origin ANLAND_STEAM_BIN)" "${ANLAND_STEAM_RT:-0}"
         printf 'Steam root      %s\n' "${STEAM_ROOT:-}"
-        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-software}"
+        printf 'Steam web UI    %s rendering, height %s\n' "${ANLAND_STEAM_CEF:-software}" \
+            "$([[ $STEAM_UI_HEIGHT == 0 ]] && echo 'chosen by Steam' || echo "$STEAM_UI_HEIGHT")"
     else
         printf 'client          %s\n' "${CLIENT[*]}"
     fi
@@ -449,6 +453,8 @@ if [[ ${#CLIENT[@]} == 0 ]]; then
     # SteamControlled may not publish a focus choice during initial UI startup.
     export GAMESCOPE_FALLBACK_APPID="${GAMESCOPE_FALLBACK_APPID:-769}"
     (( XWAYLAND_COUNT < 2 )) || export STEAM_MULTIPLE_XWAYLANDS=1
+    # Read by the patched gamescope; it sizes only Steam's own Xwayland server.
+    (( STEAM_UI_HEIGHT == 0 )) || export GAMESCOPE_STEAM_UI_HEIGHT="$STEAM_UI_HEIGHT"
     if [[ $MANGOAPP == 1 ]]; then
         # Steam writes its performance overlay presets into this file.
         export MANGOHUD_CONFIGFILE="$ANLAND_GAME_MODE_STATE/mangohud.conf"
@@ -488,7 +494,7 @@ for _ in {1..100}; do
 done
 # The desktop entry takes the same lock and picks its own drivers.
 exec 9>&-
-unset GAMESCOPE_FALLBACK_APPID STEAM_MULTIPLE_XWAYLANDS MANGOHUD_CONFIGFILE STEAM_USE_MANGOAPP \
+unset GAMESCOPE_FALLBACK_APPID GAMESCOPE_STEAM_UI_HEIGHT STEAM_MULTIPLE_XWAYLANDS MANGOHUD_CONFIGFILE STEAM_USE_MANGOAPP \
     STEAM_MANGOAPP_PRESETS_SUPPORTED STEAM_MANGOAPP_HORIZONTAL_SUPPORTED ANLAND_GAME_MODE_DBUS
 export PATH="${PATH#"$STUB_DIR":}"
 note "switching to the desktop: ${DESKTOP_CMD[*]}"

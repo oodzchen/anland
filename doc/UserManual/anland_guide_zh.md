@@ -446,6 +446,7 @@ Steam 电源菜单中的选项：
 | `ANLAND_STEAM_BETA` | `package/beta` | 作为 `-clientbeta` 传入的 Steam 客户端频道。 |
 | `ANLAND_STEAM_ARGS` | 空 | 额外的 Steam 参数，按空格分隔。 |
 | `ANLAND_STEAM_CEF` | `software` | Steam 自身界面的渲染方式：`software`（功能完整，但 Chromium 合成线程占满一个核心，动画卡顿）或 `vulkan`（实验性：流畅，但 Steam 侧边菜单和快速访问菜单无法显示）。游戏不受影响。 |
+| `ANLAND_STEAM_UI_HEIGHT` | `800` | Steam 界面的渲染高度，宽度按屏幕比例计算。软件渲染时值越低响应越快，但文字更模糊；`0` 表示由 Steam 决定（1920×1080）。游戏不受影响。 |
 | `ANLAND_STEAM_TU_DEBUG` | `sysmem` | 只对 Steam 客户端生效的 `TU_DEBUG`；不设为 `sysmem` 时，Steam 网页界面的 GPU 进程会在 Turnip 上崩溃。设为空则保留继承的值。原来的值会导出为 `STEAM_ARM64_GAME_TU_DEBUG`，供 Proton 包装脚本为游戏恢复。 |
 | `ANLAND_GAMESCOPE_ARGS` | 空 | 额外的 Gamescope 参数。 |
 | `ANLAND_MANGOAPP` | `auto` | `1`、`0` 或 `auto`（安装了 `mangoapp` 时开启）。 |

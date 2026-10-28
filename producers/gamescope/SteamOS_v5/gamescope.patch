@@ -3,6 +3,7 @@ Subject: [PATCH] Gamescope 3.16.28 SteamOS Anland integration
 Shared backend lives in ../anland_backend; no public implementation is copied here.
 Includes Steam ARM64 focus/night-mode/white-point/P3 fixes (virtudude, JPyke3),
 realtime queue/gamepad cursor adaptation, bounded local IME and system script path.
+GAMESCOPE_STEAM_UI_HEIGHT optionally renders Steam's UI server below the output size.
 
 diff --git a/src/Script/Script.cpp b/src/Script/Script.cpp
 --- a/src/Script/Script.cpp
@@ -496,3 +497,49 @@ diff --git a/src/steamcompmgr.hpp b/src/steamcompmgr.hpp
 +++ b/src/steamcompmgr.hpp
 @@ -108,0 +109,1 @@
 +	uint64_t m_ulLastPointerQuery = 0;
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -6952,6 +6952,21 @@
+ #endif
+ }
+ 
++// Steam's UI (Xwayland server 0) can render below the output size: its web views cost
++// scales with pixels when they render in software. The width follows the output aspect
++// so the UI fills the screen. Games run on other servers and keep their own modes.
++static void steam_ui_mode_override( size_t idx, int &width, int &height )
++{
++	static const int s_nHeight = []() {
++		const char *e = getenv( "GAMESCOPE_STEAM_UI_HEIGHT" );
++		return e ? atoi( e ) : 0;
++	}();
++	if ( idx != 0 || s_nHeight <= 0 || g_nOutputWidth == 0 || g_nOutputHeight == 0 )
++		return;
++	height = std::min( s_nHeight, int( g_nOutputHeight ) );
++	width = int( uint64_t( height ) * g_nOutputWidth / g_nOutputHeight );
++}
++
+ static void
+ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
+ {
+@@ -7331,6 +7346,8 @@
+ 				height = std::min<int>(height, currentOutputHeight);
+ 			}
+ 
++			steam_ui_mode_override( server_idx, width, height );
++
+ 			gamescope_xwayland_server_t *server = wlserver_get_xwayland_server( server_idx );
+ 			if ( server )
+ 			{
+@@ -10528,9 +10545,11 @@
+ 			if ( g_nXWaylandCount > 1 )
+ 			{
+ 				g_nNestedHeight = ( g_nNestedWidth * g_nOutputHeight ) / g_nOutputWidth;
++				int nSteamWidth = g_nOutputWidth, nSteamHeight = g_nOutputHeight;
++				steam_ui_mode_override( 0, nSteamWidth, nSteamHeight );
+ 				wlserver_lock();
+ 				// Update only Steam, the root ctx, with the new output size for now
+-				wlserver_set_xwayland_server_mode( 0, g_nOutputWidth, g_nOutputHeight, g_nOutputRefresh );
++				wlserver_set_xwayland_server_mode( 0, nSteamWidth, nSteamHeight, g_nOutputRefresh );
+ 				wlserver_unlock();
+ 			}
+ 
