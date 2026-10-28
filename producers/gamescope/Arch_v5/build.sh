@@ -4,9 +4,10 @@
 # INSTALL=1 explicitly installs; default INSTALL=0, never restarts services.
 # BUILD_XWAYLAND=0 reuses the patched Xwayland from producers/kde/Arch_v5.
 # JOBS defaults to nproc-1; GAMESCOPE_PATCH/GAMESCOPE_SOURCES override the shared inputs.
+# Dependencies use the commits Gamescope pins; ANLAND_GAMESCOPE_DEPS=latest follows default branches.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ ${1:-} == -h || ${1:-} == --help ]]; then sed -n '2,6p' "$0"; exit 0; fi
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then sed -n '2,7p' "$0"; exit 0; fi
 for arg in "$@"; do
     case "$arg" in --nocheck|--noconfirm|--log|--nosign) ;; *) echo "Unsupported option: $arg" >&2; exit 1 ;; esac
 done

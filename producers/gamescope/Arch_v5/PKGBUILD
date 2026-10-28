@@ -1,4 +1,5 @@
-# Arch Linux ARM aarch64: current Gamescope and dependency default branches.
+# Arch Linux ARM aarch64: current Gamescope with the dependency commits it pins.
+# ANLAND_GAMESCOPE_DEPS=latest uses each dependency's default branch instead.
 pkgname=gamescope-anland
 pkgver=0
 pkgrel=1
@@ -60,11 +61,36 @@ pkgver() {
   fi
 }
 
+# Submodules are pinned by their gitlink, wrap-git subprojects by the wrap revision.
+_pinned_revision() {
+  local tree="$1" path="$2" rev wrap="$1/$2.wrap"
+  rev="$(git -C "$tree" ls-tree HEAD -- "$path" | awk '$2 == "commit" {print $3}')"
+  if [[ -z "$rev" && -f "$wrap" ]]; then
+    rev="$(sed -n 's/^revision[[:space:]]*=[[:space:]]*//p' "$wrap" | head -n1)"
+  fi
+  printf '%s' "$rev"
+}
+
 prepare() {
-  local tree="$srcdir/gamescope" i destination
+  local tree="$srcdir/gamescope" i destination path rev
   [[ -f "$tree/meson.build" ]] || return 1
+  case "${ANLAND_GAMESCOPE_DEPS:-pinned}" in
+    pinned|latest) ;;
+    *) error 'ANLAND_GAMESCOPE_DEPS must be pinned or latest'; return 1 ;;
+  esac
   for i in "${!_dependency_names[@]}"; do
-    destination="$tree/${_dependency_paths[i]}"
+    path="${_dependency_paths[i]}"
+    rev="$(_pinned_revision "$tree" "$path")"
+    if [[ "${ANLAND_GAMESCOPE_DEPS:-pinned}" == latest || -z "$rev" ]]; then
+      warning "$path follows its default branch"
+    else
+      # Default branches can leave Gamescope's version range (wlroots 0.21-dev vs 0.20).
+      git -C "$srcdir/${_dependency_names[i]}" checkout -q --detach "$rev" || {
+        error "$path: pinned revision $rev not found"; return 1;
+      }
+      msg2 "$path at $rev"
+    fi
+    destination="$tree/$path"
     rm -rf "$destination"
     mkdir -p "$(dirname "$destination")"
     cp -a "$srcdir/${_dependency_names[i]}" "$destination" || return 1
