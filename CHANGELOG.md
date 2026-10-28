@@ -36,4 +36,5 @@
   - 自动检测 Steam 路径，也可通过 `STEAM_ROOT`、`ANLAND_STEAM_BIN` 或 `~/.config/anland/game-mode.conf` 指定。`--check` 用于自检。
   - 启动前检查 gamescope 是否带 Anland 后端，并分别提示未安装、发行版原版（可识别 pacman 包名）、缺少动态库等情况，同时给出构建命令。
   - SteamOS 桩脚本（`steamos-session-select` 等）只在会话内通过 PATH 生效，不占用 `/usr/bin`。
+  - KDE 应用菜单新增「游戏模式」入口，实现双向切换：先检查游戏模式能否启动，失败时弹窗说明且不注销；通过后关闭桌面版 Steam、注销 Plasma、清理仍持有会话锁的残留进程，再以干净的环境启动游戏模式。在 systemd 下通过 `systemd-run` 独立运行。
 - KDE Arch 包额外把 `startup.sh` 安装为 `/usr/bin/kde-anland`（pkgrel 1.2）。

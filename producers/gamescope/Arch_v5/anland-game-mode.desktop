@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Game Mode
+Name[zh_CN]=游戏模式
+Name[zh_TW]=遊戲模式
+Comment=Log out of the desktop and start Steam game mode
+Comment[zh_CN]=注销桌面并进入 Steam 游戏模式
+Comment[zh_TW]=登出桌面並進入 Steam 遊戲模式
+Exec=/usr/lib/anland-game-mode/switch-to-game-mode
+Icon=applications-games
+Terminal=false
+Categories=Game;

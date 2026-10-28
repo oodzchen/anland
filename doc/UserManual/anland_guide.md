@@ -427,6 +427,8 @@ Steam's power menu works as follows:
 - **Restart** restarts Steam.
 - **Shut Down** ends game mode.
 
+To return from KDE Plasma, open **Game Mode** from the application menu, or add it to the desktop or panel. It first checks that game mode can start, and shows the problem in a dialog without logging out if it cannot. Then it closes the desktop Steam client, logs out of Plasma, and starts `anland-game-mode` on the same socket. The log of the last switch is `~/.local/state/anland/switch-to-game-mode.log`. Running `producers/gamescope/Arch_v5/switch-to-game-mode.sh` from a checkout does the same with that checkout's game mode.
+
 To start game mode at login, run `systemctl --user enable anland-game-mode.service`.
 
 **Drivers and Droidspaces settings**

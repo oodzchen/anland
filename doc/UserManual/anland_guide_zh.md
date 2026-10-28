@@ -421,6 +421,8 @@ Steam 电源菜单中的选项：
 - **重启**：重启 Steam。
 - **关机**：结束游戏模式。
 
+从 KDE Plasma 返回游戏模式：在应用菜单中打开 **游戏模式**，也可以把它添加到桌面或面板。它会先检查游戏模式能否启动；不能启动时，会在对话框中说明原因，并且不会注销。检查通过后，它会关闭桌面版 Steam、注销 Plasma，然后在同一个 socket 上启动 `anland-game-mode`。最近一次切换的日志在 `~/.local/state/anland/switch-to-game-mode.log`。在源码目录中运行 `producers/gamescope/Arch_v5/switch-to-game-mode.sh` 效果相同，使用的是该源码目录里的游戏模式脚本。
+
 如需登录后自动进入游戏模式，运行 `systemctl --user enable anland-game-mode.service`。
 
 **驱动与 Droidspaces 设置**
