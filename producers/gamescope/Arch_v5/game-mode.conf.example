@@ -13,8 +13,8 @@
 # Defaults to the channel in $STEAM_ROOT/package/beta.
 #ANLAND_STEAM_BETA=steamdeck_publicbeta
 #ANLAND_STEAM_ARGS=-language schinese
-# Steam's own UI: software (default) or gpu; gpu renders black on Adreno for now.
-#ANLAND_STEAM_CEF=software
+# Steam's own UI: vulkan (GPU, default) or software (CPU, slower).
+#ANLAND_STEAM_CEF=vulkan
 # TU_DEBUG for the Steam client only (default sysmem); empty keeps the inherited value.
 #ANLAND_STEAM_TU_DEBUG=sysmem
 

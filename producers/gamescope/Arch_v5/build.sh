@@ -51,6 +51,7 @@ done
 cp "$HERE"/bin/* "$STAGE/"
 cp "$GAMESCOPE_PATCH" "$STAGE/gamescope.patch"
 cp "$GAMESCOPE_SOURCES" "$STAGE/sources.conf"
+cp "$XPORT/startup.sh" "$STAGE/kde-startup.sh"
 # Follow the canonical shared-source links when preparing makepkg input.
 tar -chf "$STAGE/anland-overlay.tar" --exclude='run_*' --exclude='*_test.*' -C "$BACKEND" .
 PACKAGES="$HERE/artifacts"

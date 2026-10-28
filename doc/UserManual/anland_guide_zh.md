@@ -417,7 +417,7 @@ anland-game-mode -- vkcube # 用其他客户端测试显示链路
 
 Steam 电源菜单中的选项：
 
-- **切换到桌面**：结束游戏模式，并在同一个 socket 上启动 KDE Plasma（`kde-anland`）。Android 窗口保持打开并自动重连。`kde-anland` 由 `producers/kde/Arch_v5` 的 KDE 软件包安装。
+- **切换到桌面**：结束游戏模式，并在同一个 socket 上启动 KDE Plasma（`kde-anland`）。Android 窗口保持打开并自动重连。如果没有安装 KDE 软件包提供的 `kde-anland`，游戏模式会使用随包安装的 `producers/kde/Arch_v5/startup.sh` 副本。
 - **重启**：重启 Steam。
 - **关机**：结束游戏模式。
 
@@ -445,12 +445,12 @@ Steam 电源菜单中的选项：
 | `ANLAND_STEAM_BIN` | 自动检测 | Steam 可执行文件。找不到 ARM64 客户端时，使用 `PATH` 中的 `steam`。 |
 | `ANLAND_STEAM_BETA` | `package/beta` | 作为 `-clientbeta` 传入的 Steam 客户端频道。 |
 | `ANLAND_STEAM_ARGS` | 空 | 额外的 Steam 参数，按空格分隔。 |
-| `ANLAND_STEAM_CEF` | `software` | Steam 自身界面的渲染方式：`software`，或 `gpu`（ANGLE + Vulkan）。目前在 Adreno 上，GPU 网页视图因 GBM dma-buf 导出失败而黑屏；游戏不受影响。 |
+| `ANLAND_STEAM_CEF` | `vulkan` | Steam 自身界面的渲染方式：`vulkan`（GPU，Chromium 的 Vulkan 合成）或 `software`（CPU，界面动画明显更卡）。游戏不受影响。 |
 | `ANLAND_STEAM_TU_DEBUG` | `sysmem` | 只对 Steam 客户端生效的 `TU_DEBUG`；不设为 `sysmem` 时，Steam 网页界面的 GPU 进程会在 Turnip 上崩溃。设为空则保留继承的值。原来的值会导出为 `STEAM_ARM64_GAME_TU_DEBUG`，供 Proton 包装脚本为游戏恢复。 |
 | `ANLAND_GAMESCOPE_ARGS` | 空 | 额外的 Gamescope 参数。 |
 | `ANLAND_MANGOAPP` | `auto` | `1`、`0` 或 `auto`（安装了 `mangoapp` 时开启）。 |
 | `ANLAND_XWAYLAND_COUNT` | `2` | Xwayland 服务器数量；Steam 自身界面单独使用一个。 |
-| `ANLAND_DESKTOP_CMD` | `kde-anland` | 点击**切换到桌面**后运行的命令；设为空则不切换。 |
+| `ANLAND_DESKTOP_CMD` | KDE Arch 入口 | 点击**切换到桌面**后运行的命令；设为空则不切换。未设置时依次使用 `kde-anland`、随游戏模式一起安装的 `producers/kde/Arch_v5/startup.sh` 副本。 |
 | `ANLAND_SOCKET` | `/run/display.sock` | daemon socket。 |
 
 要比较驱动性能，可以分别用 `ANLAND_GL_DRIVER=kgsl` 和 `ANLAND_GL_DRIVER=zink` 启动同一个游戏，在性能叠加层中观察帧时间。Steam 自身界面单独渲染，见 `ANLAND_STEAM_CEF`。

@@ -17,10 +17,10 @@ note() { printf 'anland-game-mode: %s\n' "$*" >&2; }
 steam_client() {
     local state="$ANLAND_GAME_MODE_STATE" rc started quick=0
     local -a args=(-gamepadui -steamdeck -steamos3 -no-cef-sandbox -cef-ozone-platform=x11) extra=()
-    # GPU web views export their frames through GBM dma-bufs, which fail on the Adreno render
-    # node (black UI with kgsl, GPU process crashes with zink); games are not affected.
-    if [[ ${ANLAND_STEAM_CEF:-software} == gpu ]]; then
-        args+=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
+    # Chromium's own Vulkan compositing; without -cef-use-vulkan the GPU web views export
+    # frames through GBM dma-bufs, which fail on the Adreno render node (black UI).
+    if [[ ${ANLAND_STEAM_CEF:-vulkan} == vulkan ]]; then
+        args+=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan -cef-use-vulkan)
     else
         args+=(-cef-disable-gpu)
     fi
@@ -324,14 +324,26 @@ case "${ANLAND_MANGOAPP:-auto}" in
     0) ;;
     *) die 'ANLAND_MANGOAPP must be auto, 0 or 1' ;;
 esac
-case "${ANLAND_STEAM_CEF:-software}" in
-    software|gpu) ;;
-    *) die 'ANLAND_STEAM_CEF must be software or gpu' ;;
+case "${ANLAND_STEAM_CEF:-vulkan}" in
+    vulkan|software) ;;
+    *) die 'ANLAND_STEAM_CEF must be vulkan or software' ;;
 esac
 XWAYLAND_COUNT="${ANLAND_XWAYLAND_COUNT:-2}"
 [[ "$XWAYLAND_COUNT" =~ ^[1-9]$ ]] || die 'ANLAND_XWAYLAND_COUNT must be 1-9'
-# An empty ANLAND_DESKTOP_CMD disables the desktop handoff.
-read -ra DESKTOP_CMD <<<"${ANLAND_DESKTOP_CMD-kde-anland}"
+# An empty ANLAND_DESKTOP_CMD disables the desktop handoff. Unset, it is the KDE Arch entry:
+# kde-anland from the KWin package, the copy in this package, or a checkout's script.
+if [[ -n ${ANLAND_DESKTOP_CMD+x} ]]; then
+    read -ra DESKTOP_CMD <<<"$ANLAND_DESKTOP_CMD"
+else
+    DESKTOP_CMD=()
+    for candidate in kde-anland /usr/lib/anland-game-mode/kde-startup \
+        "$SELF_DIR/../../kde/Arch_v5/startup.sh"; do
+        if command -v "$candidate" >/dev/null; then
+            DESKTOP_CMD=("$(command -v "$candidate")")
+            break
+        fi
+    done
+fi
 
 if [[ $CHECK == 1 ]]; then
     origin() { printf '%s' "${ORIGIN[$1]:-default}"; }
@@ -349,13 +361,15 @@ if [[ $CHECK == 1 ]]; then
         printf 'Steam           %s (%s, steamrtarm64=%s)\n' "${ANLAND_STEAM_BIN:-not found}" \
             "$(origin ANLAND_STEAM_BIN)" "${ANLAND_STEAM_RT:-0}"
         printf 'Steam root      %s\n' "${STEAM_ROOT:-}"
-        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-software}"
+        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-vulkan}"
     else
         printf 'client          %s\n' "${CLIENT[*]}"
     fi
     printf 'gamescope       %s (mangoapp=%s, xwayland-count=%s)\n' "${GAMESCOPE_BIN:-not found}" "$MANGOAPP" "$XWAYLAND_COUNT"
-    if [[ ${#DESKTOP_CMD[@]} == 0 ]]; then
+    if [[ ${#DESKTOP_CMD[@]} == 0 && -n ${ANLAND_DESKTOP_CMD+x} ]]; then
         printf 'desktop handoff disabled\n'
+    elif [[ ${#DESKTOP_CMD[@]} == 0 ]]; then
+        printf 'desktop handoff not found (install the KDE Arch package or set ANLAND_DESKTOP_CMD)\n'
     else
         printf 'desktop handoff %s (%s)\n' "${DESKTOP_CMD[*]}" \
             "$(command -v "${DESKTOP_CMD[0]}" >/dev/null && echo found || echo 'not installed')"
