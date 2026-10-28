@@ -317,7 +317,22 @@ namespace gamescope
 		{
 		}
 
+        // steamcompmgr republishes the display mode atoms and EDID whenever PollState
+        // returns true, and Steam handles each republish as a screen change. Report
+        // only real output changes; other session activity only needs a repaint.
         virtual bool PollState() override
+        {
+            if (PumpSession())
+                force_repaint();
+            const bool changed = g_nOutputWidth != m_LastOutputWidth ||
+                g_nOutputHeight != m_LastOutputHeight || g_nOutputRefresh != m_LastOutputRefresh;
+            m_LastOutputWidth = g_nOutputWidth;
+            m_LastOutputHeight = g_nOutputHeight;
+            m_LastOutputRefresh = g_nOutputRefresh;
+            return changed;
+        }
+
+        bool PumpSession()
         {
             std::lock_guard<std::mutex> deviceGuard(m_DeviceMutex);
             if (!s_session) {
@@ -786,6 +801,9 @@ namespace gamescope
         bool m_CameraStarted = false;
         bool m_AudioStarted = false;
         bool m_Capture = false;
+        decltype(g_nOutputWidth) m_LastOutputWidth = 0;
+        decltype(g_nOutputHeight) m_LastOutputHeight = 0;
+        decltype(g_nOutputRefresh) m_LastOutputRefresh = 0;
         std::chrono::steady_clock::time_point m_NextReconnect{};
         std::set<int32_t> m_Keys, m_Buttons;
         AnlandTouchState m_Touches;

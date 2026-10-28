@@ -38,3 +38,6 @@
   - SteamOS 桩脚本（`steamos-session-select` 等）只在会话内通过 PATH 生效，不占用 `/usr/bin`。
   - KDE 应用菜单新增「游戏模式」入口，实现双向切换：先检查游戏模式能否启动，失败时弹窗说明且不注销；通过后关闭桌面版 Steam、注销 Plasma、清理仍持有会话锁的残留进程，再以干净的环境启动游戏模式。在 systemd 下通过 `systemd-run` 独立运行。
 - KDE Arch 包额外把 `startup.sh` 安装为 `/usr/bin/kde-anland`（pkgrel 1.2）。
+- 修复 Steam 大屏幕启动后黑屏退出：
+  - gamescope Anland 后端的 `PollState` 每帧都返回 true，gamescope 因此每帧重发显示模式，Steam 每秒收到 60 次「屏幕已变更」。现在只在输出尺寸或刷新率变化时返回 true，其他情况只请求重绘。
+  - Steam 客户端补齐 DroidDeck 式环境：`STEAM_RUNTIME`/`STEAM_STEAMRT_RECURSION_GUARD` 和 `steamrtarm64` 库路径；去掉 im-wayland 的 GTK 输入法缓存（否则网页界面进程会因 Plasma 的 `gtk-im-module=wayland` 崩溃）；客户端默认 `TU_DEBUG=sysmem`（否则 GPU 进程崩溃）；容器内关闭 SDL 的 udev。

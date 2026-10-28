@@ -13,6 +13,7 @@
 # Defaults to the channel in $STEAM_ROOT/package/beta.
 #ANLAND_STEAM_BETA=steamdeck_publicbeta
 #ANLAND_STEAM_ARGS=-language schinese
+# TU_DEBUG for the Steam client only (default sysmem); empty keeps the inherited value.
 #ANLAND_STEAM_TU_DEBUG=sysmem
 
 #ANLAND_GAMESCOPE_ARGS=

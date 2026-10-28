@@ -24,9 +24,38 @@ steam_client() {
     export XDG_CURRENT_DESKTOP=gamescope XDG_SESSION_DESKTOP=gamescope
     export SRT_URLOPEN_PREFER_STEAM=1
     export STEAM_GAMESCOPE_NIS_SUPPORTED=1 STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
-    [[ -z ${ANLAND_STEAM_TU_DEBUG:-} ]] || export TU_DEBUG="$ANLAND_STEAM_TU_DEBUG"
+    [[ -n ${STEAM_USE_MANGOAPP:-} ]] ||
+        export STEAM_USE_MANGOAPP=0 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1
+    export SDL_VIDEO_X11_DGAMOUSE=0
+    # Containers have no udevd; SDL then watches /dev/input itself and sees controllers added later.
+    export SDL_JOYSTICK_DISABLE_UDEV=1
+    # Turnip's GMEM mode crashes the web UI's GPU process. Games get their own value back
+    # from wrappers that read STEAM_ARM64_GAME_TU_DEBUG, as DroidDeck's Proton launcher does.
+    export STEAM_ARM64_GAME_TU_DEBUG="${TU_DEBUG-}"
+    if [[ -n ${ANLAND_STEAM_TU_DEBUG-sysmem} ]]; then
+        export TU_DEBUG="${ANLAND_STEAM_TU_DEBUG-sysmem}" STEAM_ARM64_CLIENT_TU_DEBUG_SET="${ANLAND_STEAM_TU_DEBUG-sysmem}"
+    fi
+    # Plasma's gtk-im-module=wayland (settings.ini) makes GTK 3 in the X11 web helper load
+    # im-wayland, which crashes it on a NULL wl_proxy; give Steam a module cache without it.
+    local im_dir=/usr/lib/gtk-3.0/3.0.0/immodules im_cache="${XDG_CACHE_HOME:-$HOME/.cache}/anland/gtk3-immodules.cache"
+    if [[ -d "$im_dir" ]] && command -v gtk-query-immodules-3.0 >/dev/null; then
+        if [[ ! -s "$im_cache" || "$im_dir" -nt "$im_cache" ]]; then
+            mkdir -p -- "${im_cache%/*}"
+            local -a modules=() module
+            for module in "$im_dir"/*.so; do
+                [[ "${module##*/}" == im-wayland.so ]] || modules+=("$module")
+            done
+            gtk-query-immodules-3.0 "${modules[@]}" > "$im_cache" 2>/dev/null || rm -f -- "$im_cache"
+        fi
+        [[ ! -s "$im_cache" ]] || export GTK_IM_MODULE_FILE="$im_cache"
+    fi
+    [[ ${GTK_IM_MODULE:-} != wayland ]] || unset GTK_IM_MODULE
     cd -- "$STEAM_ROOT"
     if [[ $ANLAND_STEAM_RT == 1 ]]; then
+        # pressure-vessel and the CEF sandbox need user namespaces that the container refuses;
+        # the guard keeps the client from re-executing itself into the Steam Runtime container.
+        export STEAM_RUNTIME=1 STEAM_STEAMRT_RECURSION_GUARD=1
+        export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         # Steam's XRandR wrappers use RTLD_NEXT; make the real symbols global early.
         if [[ ${ANLAND_STEAM_XRANDR_PRELOAD:-1} == 1 ]]; then
             export LD_PRELOAD="libXrandr.so.2${LD_PRELOAD:+:$LD_PRELOAD}"
