@@ -41,5 +41,5 @@
 - 修复 Steam 大屏幕启动后黑屏退出：
   - gamescope Anland 后端的 `PollState` 每帧都返回 true，gamescope 因此每帧重发显示模式，Steam 每秒收到 60 次「屏幕已变更」。现在只在输出尺寸或刷新率变化时返回 true，其他情况只请求重绘。
   - Steam 客户端补齐 DroidDeck 式环境：`STEAM_RUNTIME`/`STEAM_STEAMRT_RECURSION_GUARD` 和 `steamrtarm64` 库路径；去掉 im-wayland 的 GTK 输入法缓存（否则网页界面进程会因 Plasma 的 `gtk-im-module=wayland` 崩溃）；客户端默认 `TU_DEBUG=sysmem`（否则 GPU 进程崩溃）；容器内关闭 SDL 的 udev。
-  - Steam 界面改用 Chromium 的 Vulkan 合成（`-cef-use-vulkan`）进行 GPU 渲染。不加这个参数时，CEF 会通过 GBM 导出 dma-buf，这在 Adreno 渲染节点上会失败（界面全黑）；而软件渲染时合成线程会占满一个核心，动画卡顿。`ANLAND_STEAM_CEF=software` 可切回软件渲染。
+  - Steam 界面默认使用软件渲染（功能完整，但动画卡顿）。`ANLAND_STEAM_CEF=vulkan` 是实验选项（`-cef-use-vulkan`）：界面流畅，但侧边菜单和快速访问菜单显示不出来——它们是子窗口，Gamescope WSI 无法绕过 Xwayland 直出，而 Chromium 经 X11 的 Vulkan 呈现在这里不出画面。不加 `-cef-use-vulkan` 的 GPU 模式会因 GBM dma-buf 导出失败而黑屏。
   - 「切换到桌面」：未安装 `kde-anland` 时，改用随游戏模式一起安装的 KDE Arch 启动脚本副本，不再停留在「正在关闭 Steam」画面。

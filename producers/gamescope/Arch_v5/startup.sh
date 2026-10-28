@@ -17,9 +17,11 @@ note() { printf 'anland-game-mode: %s\n' "$*" >&2; }
 steam_client() {
     local state="$ANLAND_GAME_MODE_STATE" rc started quick=0
     local -a args=(-gamepadui -steamdeck -steamos3 -no-cef-sandbox -cef-ozone-platform=x11) extra=()
-    # Chromium's own Vulkan compositing; without -cef-use-vulkan the GPU web views export
-    # frames through GBM dma-bufs, which fail on the Adreno render node (black UI).
-    if [[ ${ANLAND_STEAM_CEF:-vulkan} == vulkan ]]; then
+    # Software web views keep Steam's menus but use one core. Vulkan is smooth, but a menu is
+    # a child window that the Gamescope WSI layer cannot bypass, and Chromium's X11 Vulkan
+    # presentation stays blank here. Without -cef-use-vulkan, GPU web views export frames
+    # through GBM dma-bufs, which fail on the Adreno render node (black UI).
+    if [[ ${ANLAND_STEAM_CEF:-software} == vulkan ]]; then
         args+=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan -cef-use-vulkan)
     else
         args+=(-cef-disable-gpu)
@@ -324,7 +326,7 @@ case "${ANLAND_MANGOAPP:-auto}" in
     0) ;;
     *) die 'ANLAND_MANGOAPP must be auto, 0 or 1' ;;
 esac
-case "${ANLAND_STEAM_CEF:-vulkan}" in
+case "${ANLAND_STEAM_CEF:-software}" in
     vulkan|software) ;;
     *) die 'ANLAND_STEAM_CEF must be vulkan or software' ;;
 esac
@@ -361,7 +363,7 @@ if [[ $CHECK == 1 ]]; then
         printf 'Steam           %s (%s, steamrtarm64=%s)\n' "${ANLAND_STEAM_BIN:-not found}" \
             "$(origin ANLAND_STEAM_BIN)" "${ANLAND_STEAM_RT:-0}"
         printf 'Steam root      %s\n' "${STEAM_ROOT:-}"
-        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-vulkan}"
+        printf 'Steam web UI    %s rendering\n' "${ANLAND_STEAM_CEF:-software}"
     else
         printf 'client          %s\n' "${CLIENT[*]}"
     fi

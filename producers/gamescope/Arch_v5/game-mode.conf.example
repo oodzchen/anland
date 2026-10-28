@@ -13,8 +13,9 @@
 # Defaults to the channel in $STEAM_ROOT/package/beta.
 #ANLAND_STEAM_BETA=steamdeck_publicbeta
 #ANLAND_STEAM_ARGS=-language schinese
-# Steam's own UI: vulkan (GPU, default) or software (CPU, slower).
-#ANLAND_STEAM_CEF=vulkan
+# Steam's own UI: software (default; complete, animations stutter) or vulkan
+# (experimental; smooth, but Steam's side menu and Quick Access stay invisible).
+#ANLAND_STEAM_CEF=software
 # TU_DEBUG for the Steam client only (default sysmem); empty keeps the inherited value.
 #ANLAND_STEAM_TU_DEBUG=sysmem
 
