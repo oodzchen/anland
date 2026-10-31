@@ -84,6 +84,8 @@ public class SettingsActivity extends Activity {
     private static final String KEY_TOUCHPAD_MODE = "touchpad_mode";
     private static final String KEY_MOUSE_ACCEL = "mouse_speed";
     private static final String KEY_POINTER_CAPTURE = "pointer_capture";
+    private static final String KEY_TOUCHPAD_NATIVE_ACCEL =
+            MainActivity.KEY_TOUCHPAD_NATIVE_ACCEL;
     private static final String KEY_SCROLL_SPEED = "scroll_speed";
     private static final String KEY_SCROLL_REVERSE = "scroll_reverse";
     private static final String KEY_SCROLL_THRESHOLD = "touchpad_scroll_threshold";
@@ -1278,6 +1280,24 @@ public class SettingsActivity extends Activity {
         pointerCaptureHint.setTextColor(Color.GRAY);
         pointerCaptureHint.setPadding(0, dp(4), 0, dp(12));
         root.addView(pointerCaptureHint);
+
+        // Android's own touchpad acceleration for a captured touchpad.
+        Switch nativeAccelSwitch = new Switch(this);
+        nativeAccelSwitch.setText(R.string.touchpad_native_accel_switch);
+        nativeAccelSwitch.setTextSize(14);
+        nativeAccelSwitch.setPadding(0, dp(8), 0, 0);
+        nativeAccelSwitch.setChecked(prefs.getBoolean(KEY_TOUCHPAD_NATIVE_ACCEL, true));
+        nativeAccelSwitch.setOnCheckedChangeListener((v, checked) ->
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                        .putBoolean(KEY_TOUCHPAD_NATIVE_ACCEL, checked).apply());
+        root.addView(nativeAccelSwitch);
+
+        TextView nativeAccelHint = new TextView(this);
+        nativeAccelHint.setText(R.string.touchpad_native_accel_hint);
+        nativeAccelHint.setTextSize(12);
+        nativeAccelHint.setTextColor(Color.GRAY);
+        nativeAccelHint.setPadding(0, dp(4), 0, dp(12));
+        root.addView(nativeAccelHint);
 
         // 鼠标加速度（灵敏度）—— 范围 0.5 ~ 10.0
         LinearLayout accelLayout = new LinearLayout(this);

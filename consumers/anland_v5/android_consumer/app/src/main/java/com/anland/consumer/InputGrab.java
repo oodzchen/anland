@@ -670,9 +670,13 @@ final class InputGrab implements InputGrabTransport {
                         final int minY = bb.getInt(rec + AUX0 + 8);
                         final int maxY = bb.getInt(rec + AUX0 + 12);
                         final int flags = bb.getInt(rec + AUX0 + 16);
+                        // The axis resolution rides in the otherwise unused code
+                        // and value fields; an older helper leaves them 0.
+                        final int resX = code, resY = value;
                         main.post(() -> {
                             if (running)
-                                listener.onDevice(d, cls, minX, maxX, minY, maxY, flags);
+                                listener.onDevice(d, cls, minX, maxX, minY, maxY,
+                                        resX, resY, flags);
                         });
                         break;
                     }

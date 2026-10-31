@@ -124,6 +124,8 @@
     <string name="pointer_capture_switch">외부 포인터 캡처</string>
     <string name="pointer_capture_hint">외부 마우스나 터치패드를 데스크톱 화면에 고정하고 상대 좌표 이동을 사용하므로, 화면 상단이나 하단 가장자리에 닿아도 안드로이드 시스템 바가 나타나지 않습니다. 뒤로가기를 눌러 일시적으로 해제할 수 있으며, 데스크톱 화면을 클릭하면 다시 캡처됩니다. 화면 터치 입력에는 영향을 주지 않습니다.</string>
     <string name="pointer_capture_released">외부 포인터가 해제되었습니다. 데스크톱 화면을 클릭하면 다시 캡처됩니다.</string>
+    <string name="touchpad_native_accel_switch">Android 터치패드 가속 따르기</string>
+    <string name="touchpad_native_accel_hint">외부 터치패드(포인터 캡처 또는 몰입 모드)가 Android 자체 가속 곡선을 사용하여 같은 손가락 움직임에 Android 커서와 같은 거리만큼 이동합니다. 속도는 Android 설정의 터치패드 속도를 따르며, 켜져 있으면 아래 감도 슬라이더는 화면 터치패드와 마우스에만 적용됩니다.</string>
     <string name="mouse_sensitivity_label">터치패드 포인터 감도 (가속)</string>
     <string name="mouse_accel_value">%1$.1fx</string>
     <string name="scroll_reverse_switch">스크롤 방향 반전</string>

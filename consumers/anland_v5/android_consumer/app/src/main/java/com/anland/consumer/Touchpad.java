@@ -229,6 +229,17 @@ public final class Touchpad {
 
     private float mouseAccelStrength = 1.0f; // 加速度强度，0.5 ~ 10.0
 
+    // Android's own touchpad curve, for a physical pad whose units per millimetre
+    // are known (see setNativeAcceleration). Null keeps the curve above, which the
+    // on-screen touchpad always uses.
+    private AndroidTouchpadAccel nativeAccel;
+    private float nativeUnitsPerMmX;
+    private float nativeUnitsPerMmY;
+    // Hardware time of the frame being recognized, and whether it moved the
+    // cursor; a frame that did not still restarts the curve's speed measurement.
+    private long frameTimeNs;
+    private boolean frameMoved;
+
     // 禁用双指捏合/张开与三指及以上的触摸转发手势（缩放等）。开启后这些
     // 手势被吞掉（不转发为触摸），双指滚动与双指右键点击不受影响。
     private boolean multiFingerGesturesDisabled = false;
@@ -305,6 +316,20 @@ public final class Touchpad {
     /** Set the acceleration strength (clamped to 0.5 ~ 10.0). */
     void setAccelStrength(float strength) {
         mouseAccelStrength = Math.max(0.5f, Math.min(10.0f, strength));
+    }
+
+    /**
+     * Move the cursor exactly as Android would for this physical pad, instead of
+     * through the smoothing and the strength curve. Needs the pad's resolution
+     * in units per millimetre; a null curve or a missing resolution turns it off.
+     */
+    void setNativeAcceleration(AndroidTouchpadAccel accel,
+                               float unitsPerMmX, float unitsPerMmY) {
+        boolean usable = accel != null && unitsPerMmX > 0f && unitsPerMmY > 0f;
+        nativeAccel = usable ? accel : null;
+        nativeUnitsPerMmX = usable ? unitsPerMmX : 0f;
+        nativeUnitsPerMmY = usable ? unitsPerMmY : 0f;
+        resetSmoothing();
     }
 
     /** Set the two-finger scroll distance per pixel of travel (0.05 ~ 5.0). */
@@ -421,6 +446,17 @@ public final class Touchpad {
      * touch instead, so nothing is silently dropped.
      */
     void onTouch(MotionEvent event) {
+        onTouch(event, event.getEventTime() * 1_000_000L);
+    }
+
+    /**
+     * {@link #onTouch(MotionEvent)} for a frame whose hardware timestamp is
+     * known more precisely than the event's millisecond time. The native curve
+     * measures finger speed from it.
+     */
+    void onTouch(MotionEvent event, long frameTimeNs) {
+        this.frameTimeNs = frameTimeNs;
+        frameMoved = false;
         MotionEvent normalized = normalizeToOutput(event);
         boolean handled;
         try {
@@ -428,6 +464,8 @@ public final class Touchpad {
         } finally {
             if (normalized != null)
                 normalized.recycle();
+            if (nativeAccel != null && !frameMoved)
+                nativeAccel.markFrame(frameTimeNs);
         }
         if (!handled)
             forwardAsTouch(event);
@@ -865,6 +903,20 @@ public final class Touchpad {
 
     /** Smooth and accelerate one finger's raw delta into cursor motion. */
     private void moveCursor(float rawDx, float rawDy) {
+        if (nativeAccel != null && inputRangeX > 0f && inputRangeY > 0f
+                && outputWidth > 0 && outputHeight > 0) {
+            // Back from output pixels to pad units: the curve works in
+            // millimetres, the same on both axes, where the output mapping
+            // stretches each axis to the screen on its own.
+            float[] delta = nativeAccel.accelerate(
+                    rawDx * (inputRangeX / outputWidth),
+                    rawDy * (inputRangeY / outputHeight),
+                    nativeUnitsPerMmX, nativeUnitsPerMmY, frameTimeNs);
+            frameMoved = true;
+            if (delta[0] != 0f || delta[1] != 0f)
+                sendMotion(delta[0], delta[1]);
+            return;
+        }
         float[] smoothed = applySmoothing(rawDx, rawDy);
         float smoothDx = smoothed[0];
         float smoothDy = smoothed[1];

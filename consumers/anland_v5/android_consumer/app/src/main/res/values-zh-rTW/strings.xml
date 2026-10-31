@@ -126,6 +126,8 @@
     <string name="pointer_capture_switch">擷取外接指標</string>
     <string name="pointer_capture_hint">開啟後會將外接滑鼠或觸控板鎖定在桌面畫面內並使用相對移動，移到螢幕頂部或底部不會呼出 Android 狀態列或導覽列。按 Android 返回鍵可暫時釋放，點擊桌面畫面重新擷取；螢幕觸控不受影響。</string>
     <string name="pointer_capture_released">外接指標已釋放。點擊桌面畫面即可重新擷取。</string>
+    <string name="touchpad_native_accel_switch">跟隨 Android 觸控板加速</string>
+    <string name="touchpad_native_accel_hint">外接觸控板（指標擷取或沉浸模式下）使用 Android 本身的加速曲線，相同的手指移動與 Android 原生游標移動距離一致。速度跟隨 Android 設定中的觸控板速度；開啟時下方靈敏度滑桿僅作用於螢幕觸控板和滑鼠。</string>
     <string name="mouse_sensitivity_label">觸控板指標靈敏度（加速度）</string>
     <string name="mouse_accel_value">%1$.1f 倍</string>
     <!-- Connection -->

@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -164,6 +165,11 @@ public class MainActivity extends Activity
     // the Android screen edges. This is deliberately opt-in: existing installations
     // keep the old absolute-pointer behaviour until the user enables it.
     public static final String KEY_POINTER_CAPTURE = "pointer_capture";
+    // Drive a captured touchpad with Android's own acceleration curve (see
+    // AndroidTouchpadAccel) instead of the mouse_speed curve.
+    public static final String KEY_TOUCHPAD_NATIVE_ACCEL = "touchpad_native_accel";
+    // Hidden Settings.System key Android's touchpad curve follows (-7 ~ +7).
+    private static final String SETTING_TOUCHPAD_POINTER_SPEED = "touchpad_pointer_speed";
 
     // Routing gate: when on, non-mouse touches go to the on-screen touchpad.
     private boolean isTouchpadMode = true;
@@ -209,6 +215,9 @@ public class MainActivity extends Activity
     private float capturedTouchpadAccel = 1.0f;
     /** Raw mouse speed at which half of the configured acceleration is applied. */
     private static final float RELATIVE_ACCEL_REFERENCE_COUNTS_PER_S = 1000f;
+    private boolean capturedTouchpadNativeAccelEnabled = true;
+    private final AndroidTouchpadAccel capturedTouchpadNativeAccel =
+            new AndroidTouchpadAccel();
     private boolean capturedTouchpadBaselineValid = false;
     private int capturedTouchpadBaselinePointers = 0;
     private float capturedTouchpadLastCentroidX = 0f;
@@ -879,8 +888,25 @@ public class MainActivity extends Activity
     private void applyTouchpadPrefs(SharedPreferences prefs) {
         capturedTouchpadAccel = Math.max(0.5f,
                 Math.min(10.0f, prefs.getFloat(KEY_MOUSE_ACCEL, 1.0f)));
+        capturedTouchpadNativeAccelEnabled =
+                prefs.getBoolean(KEY_TOUCHPAD_NATIVE_ACCEL, true);
+        capturedTouchpadNativeAccel.setSpeedSetting(readTouchpadPointerSpeed());
         applyTouchpadPrefs(prefs, screenTouchpad);
         applyTouchpadPrefs(prefs, capturedTouchpad);
+    }
+
+    /**
+     * Android's touchpad speed setting, so the captured curve matches the system
+     * one. The key is hidden, and builds that do not let apps read it get the
+     * default speed.
+     */
+    private int readTouchpadPointerSpeed() {
+        try {
+            return Settings.System.getInt(getContentResolver(),
+                    SETTING_TOUCHPAD_POINTER_SPEED, 0);
+        } catch (RuntimeException e) {
+            return 0;
+        }
     }
 
     /** The same tuning for one pad, so an immersive session's pad shares it. */
@@ -1242,6 +1268,8 @@ public class MainActivity extends Activity
                     setCapturedTouchpadBaseline(event, -1);
                     buttonDragLastX.clear();
                     buttonDragLastY.clear();
+                    capturedTouchpadNativeAccel.markFrame(
+                            capturedTouchpadEventTimeNanos(event, -1));
                     break;
                 case MotionEvent.ACTION_POINTER_DOWN:
                 case MotionEvent.ACTION_POINTER_UP:
@@ -1249,6 +1277,8 @@ public class MainActivity extends Activity
                     capturedTouchpadBaselineValid = false;
                     buttonDragLastX.clear();
                     buttonDragLastY.clear();
+                    capturedTouchpadNativeAccel.markFrame(
+                            capturedTouchpadEventTimeNanos(event, -1));
                     break;
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_HOVER_MOVE:
@@ -1290,9 +1320,13 @@ public class MainActivity extends Activity
                 0, historyPos);
         float dy = capturedTouchpadAxis(event, MotionEvent.AXIS_RELATIVE_Y,
                 0, historyPos);
+        boolean nativeAccel = useCapturedTouchpadNativeAccel(event);
         float[] fallback = applyCapturedTouchpadAbsoluteFallback(
-                event, historyPos, dx, dy);
-        sendCapturedTouchpadMotion(fallback[0], fallback[1]);
+                event, historyPos, dx, dy, nativeAccel);
+        if (nativeAccel)
+            sendCapturedTouchpadNativeMotion(event, historyPos, fallback[0], fallback[1]);
+        else
+            sendCapturedTouchpadMotion(fallback[0], fallback[1]);
     }
 
     /**
@@ -1307,8 +1341,12 @@ public class MainActivity extends Activity
         int pointerCount = event.getPointerCount();
         if (pointerCount < 2)
             return;
-        float scaleX = capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_X, true);
-        float scaleY = capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_Y, false);
+        // The native curve takes raw pad units; the legacy one view pixels.
+        boolean nativeAccel = useCapturedTouchpadNativeAccel(event);
+        float scaleX = nativeAccel ? 1f
+                : capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_X, true);
+        float scaleY = nativeAccel ? 1f
+                : capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_Y, false);
 
         // Drop contacts that have lifted since the last sample.
         for (int i = buttonDragLastX.size() - 1; i >= 0; i--) {
@@ -1346,7 +1384,9 @@ public class MainActivity extends Activity
             buttonDragLastY.put(id, event.getY(i));
         }
 
-        if (bestMag > 0f)
+        if (nativeAccel)
+            sendCapturedTouchpadNativeMotion(event, -1, bestDx, bestDy);
+        else if (bestMag > 0f)
             sendCapturedTouchpadMotion(bestDx, bestDy);
     }
 
@@ -1360,10 +1400,15 @@ public class MainActivity extends Activity
         return range != null ? range : device.getMotionRange(axis);
     }
 
-    /** Use absolute pad coordinates only when a driver omits the relative axes. */
+    /**
+     * Use absolute pad coordinates only when a driver omits the relative axes.
+     * With rawUnits the fallback stays in pad units, as the relative axes are;
+     * otherwise it is mapped onto the view.
+     */
     private float[] applyCapturedTouchpadAbsoluteFallback(MotionEvent event,
                                                            int historyPos,
-                                                           float dx, float dy) {
+                                                           float dx, float dy,
+                                                           boolean rawUnits) {
         int pointerCount = event.getPointerCount();
         float centroidX = capturedTouchpadCentroid(event, historyPos, true);
         float centroidY = capturedTouchpadCentroid(event, historyPos, false);
@@ -1373,10 +1418,10 @@ public class MainActivity extends Activity
             // AXIS_X/Y are device-dependent touchpad units. Normalize the
             // low-reliability fallback through the device motion ranges before
             // treating it as a display-pixel delta.
-            dx = (centroidX - capturedTouchpadLastCentroidX)
-                    * capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_X, true);
-            dy = (centroidY - capturedTouchpadLastCentroidY)
-                    * capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_Y, false);
+            dx = (centroidX - capturedTouchpadLastCentroidX) * (rawUnits ? 1f
+                    : capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_X, true));
+            dy = (centroidY - capturedTouchpadLastCentroidY) * (rawUnits ? 1f
+                    : capturedTouchpadCoordinateScale(event, MotionEvent.AXIS_Y, false));
         }
         capturedTouchpadLastCentroidX = centroidX;
         capturedTouchpadLastCentroidY = centroidY;
@@ -1399,6 +1444,44 @@ public class MainActivity extends Activity
         float span = range == null ? 0f : range.getRange();
         int size = xAxis ? pointerViewWidth() : pointerViewHeight();
         return span > 0f && size > 0 ? size / span : 0f;
+    }
+
+    /** Pad units per millimetre on one axis, or 0 when the driver gives none. */
+    private float capturedPadResolution(MotionEvent event, int axis) {
+        InputDevice.MotionRange range = capturedPadRange(event, axis);
+        return range == null ? 0f : range.getResolution();
+    }
+
+    /** Native curve: enabled, and the pad says how big its units are. */
+    private boolean useCapturedTouchpadNativeAccel(MotionEvent event) {
+        return capturedTouchpadNativeAccelEnabled
+                && capturedPadResolution(event, MotionEvent.AXIS_X) > 0f
+                && capturedPadResolution(event, MotionEvent.AXIS_Y) > 0f;
+    }
+
+    /**
+     * Move the cursor as Android would for this frame of raw pad motion. Frames
+     * without motion still go through, since the curve's speed is measured from
+     * the previous frame whether or not it moved.
+     */
+    private void sendCapturedTouchpadNativeMotion(MotionEvent event, int historyPos,
+                                                  float dx, float dy) {
+        float[] delta = capturedTouchpadNativeAccel.accelerate(dx, dy,
+                capturedPadResolution(event, MotionEvent.AXIS_X),
+                capturedPadResolution(event, MotionEvent.AXIS_Y),
+                capturedTouchpadEventTimeNanos(event, historyPos));
+        movePointerBy(delta[0], delta[1]);
+    }
+
+    /** A sample's hardware timestamp; below Android 14 only milliseconds exist. */
+    private static long capturedTouchpadEventTimeNanos(MotionEvent event,
+                                                       int historyPos) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return historyPos >= 0 ? event.getHistoricalEventTimeNanos(historyPos)
+                    : event.getEventTimeNanos();
+        }
+        return (historyPos >= 0 ? event.getHistoricalEventTime(historyPos)
+                : event.getEventTime()) * 1_000_000L;
     }
 
     private void sendCapturedTouchpadMotion(float dx, float dy) {
@@ -2192,9 +2275,16 @@ public class MainActivity extends Activity
      * source, since the tap-to-click Android would have done is bypassed.
      */
     @Override
-    public Touchpad newGrabbedPad() {
+    public Touchpad newGrabbedPad(float unitsPerMmX, float unitsPerMmY) {
         Touchpad pad = new Touchpad(this, new TouchpadOutput(true), true);
-        applyTouchpadPrefs(getSharedPreferences(PREFS_NAME, MODE_PRIVATE), pad);
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        applyTouchpadPrefs(prefs, pad);
+        // Each pad measures its own finger speed, so each gets its own curve.
+        if (prefs.getBoolean(KEY_TOUCHPAD_NATIVE_ACCEL, true)) {
+            AndroidTouchpadAccel accel = new AndroidTouchpadAccel();
+            accel.setSpeedSetting(readTouchpadPointerSpeed());
+            pad.setNativeAcceleration(accel, unitsPerMmX, unitsPerMmY);
+        }
         pad.setOutputSize(pointerViewWidth(), pointerViewHeight());
         return pad;
     }
