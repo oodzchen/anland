@@ -21,8 +21,35 @@
 - 包含物理按压的一串触摸不再额外合成轻击或双指右键。
 - 物理按压只有右下角区域（右半边底部 20%）算右键，其他位置都是左键，指针捕获模式同样适用。
 
+### 外接触摸板：跟随 Android 原生加速曲线
+
+- 指针捕获和沉浸模式下的外接触摸板改用 Android 自身的触摸板加速：按触摸板分辨率把位移换算成毫米，用硬件时间戳计算手指速度，套用 AOSP 的分段曲线（`AccelerationCurve.cpp`，经 Gestures 库以 133 DPI 输出）。相同的手指移动，光标移动距离与 Android 原生一致：慢速微调约 10.7 px/mm，快速滑动增益随速度继续上升。
+  - 此前捕获模式把触摸板原始单位直接当像素，并按单帧位移估算速度，轻微移动会移过头、快速滑动又不够快。
+  - 沉浸模式此前把触摸板坐标按 X、Y 分别拉伸到屏幕，横竖速度不一致，还叠加了平滑滤波和死区；现在 root helper 在设备记录中上报坐标轴分辨率（复用原本空闲的 `code`/`value` 字段，旧 helper 上报 0 时回退旧算法），合成事件携带 evdev 帧时间戳，并跳过平滑滤波。
+- 设置 → 触摸板新增「跟随 Android 触摸板加速」，默认开启；速度跟随 Android 设置中的触摸板速度（系统不允许读取时按默认速度）。开启时灵敏度滑块只作用于屏幕触摸板和鼠标；关闭后恢复原有算法。
+- `tests/test_touchpad.py` 新增沉浸模式原生曲线场景：慢速增益、横竖一致和高速段。
+
 ### 屏幕常亮可设置（`legacy-keep-screen-on`）
 
 - 设置 → 通用 → 息屏新增「保持屏幕常亮」开关，默认开启，与原行为一致。
 - 关闭后，桌面在前台时按系统的息屏时间自动息屏锁屏。
 - 沉浸模式下被独占的输入设备的操作仍计为用户活动：息屏倒计时从最后一次输入开始计算（最多延后约 5 秒），使用中不会息屏。
+
+### Arch Linux 游戏模式：Gamescope 直出 Steam 大屏幕
+
+- 新增 `producers/gamescope/Arch_v5`，构建 Arch Linux ARM 版 `gamescope-anland`，复用 SteamOS 版的 Gamescope 补丁和 KDE Arch 版的 Xwayland。
+- 新增 `anland-game-mode`：Gamescope 通过 Anland 后端直接输出，运行 Steam `-gamepadui -steamos3`，不启动 KWin。
+  - Steam 电源菜单：「切换到桌面」在同一个 socket 上接力启动 KDE（`kde-anland`）；「重启」重启 Steam；「关机」结束游戏模式。Steam 更新产生的 rc 42 会自动重启 Steam。
+  - 保留 Droidspaces Advanced Options 和 `/run/droidspaces.env` 中已设置的驱动变量，只补缺失项。`ANLAND_GL_DRIVER=kgsl|zink` 可强制指定驱动。VirGL 和 Droidspaces PulseAudio 冲突会被检测并提示。
+  - 自动检测 Steam 路径，也可通过 `STEAM_ROOT`、`ANLAND_STEAM_BIN` 或 `~/.config/anland/game-mode.conf` 指定。`--check` 用于自检。
+  - 启动前检查 gamescope 是否带 Anland 后端，并分别提示未安装、发行版原版（可识别 pacman 包名）、缺少动态库等情况，同时给出构建命令。
+  - SteamOS 桩脚本（`steamos-session-select` 等）只在会话内通过 PATH 生效，不占用 `/usr/bin`。
+  - KDE 应用菜单新增「游戏模式」入口，实现双向切换：先检查游戏模式能否启动，失败时弹窗说明且不注销；通过后关闭桌面版 Steam、注销 Plasma、清理仍持有会话锁的残留进程，再以干净的环境启动游戏模式。在 systemd 下通过 `systemd-run` 独立运行。
+- KDE Arch 包额外把 `startup.sh` 安装为 `/usr/bin/kde-anland`（pkgrel 1.2）。
+- 修复 Steam 大屏幕启动后黑屏退出：
+  - gamescope Anland 后端的 `PollState` 每帧都返回 true，gamescope 因此每帧重发显示模式，Steam 每秒收到 60 次「屏幕已变更」。现在只在输出尺寸或刷新率变化时返回 true，其他情况只请求重绘。
+  - Steam 客户端补齐 DroidDeck 式环境：`STEAM_RUNTIME`/`STEAM_STEAMRT_RECURSION_GUARD` 和 `steamrtarm64` 库路径；去掉 im-wayland 的 GTK 输入法缓存（否则网页界面进程会因 Plasma 的 `gtk-im-module=wayland` 崩溃）；客户端默认 `TU_DEBUG=sysmem`（否则 GPU 进程崩溃）；容器内关闭 SDL 的 udev。
+  - Steam 界面默认使用软件渲染（功能完整，但动画卡顿）。`ANLAND_STEAM_CEF=vulkan` 是实验选项（`-cef-use-vulkan`）：界面流畅，但侧边菜单和快速访问菜单显示不出来——它们是子窗口，Gamescope WSI 无法绕过 Xwayland 直出，而 Chromium 经 X11 的 Vulkan 呈现在这里不出画面。不加 `-cef-use-vulkan` 的 GPU 模式会因 GBM dma-buf 导出失败而黑屏。
+  - Steam 界面默认以 800 像素高、按屏幕比例的宽度渲染（`ANLAND_STEAM_UI_HEIGHT`，经 gamescope 补丁新增的 `GAMESCOPE_STEAM_UI_HEIGHT` 只作用于 Steam 自己的 Xwayland）：软件渲染响应更快，也不再有 16:9 留黑边。设为 `0` 则由 Steam 自行选择。
+  - 「切换到桌面」优先重新启动 Droidspaces 的 `desktop-session.service`（与开机时启动桌面的方式相同，带登录会话和 `/etc/environment`），软件包附带 polkit 规则，允许 `wheel` 组免密码启动该单元；启动失败时再回退到 KDE 启动脚本。KDE Arch 启动脚本的 portal 检查兼容 `droidspaces-noop-xdg-desktop-portals`。
+  - 「切换到桌面」：未安装 `kde-anland` 时，改用随游戏模式一起安装的 KDE Arch 启动脚本副本，不再停留在「正在关闭 Steam」画面。

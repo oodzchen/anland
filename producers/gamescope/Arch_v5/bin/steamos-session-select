@@ -1,0 +1,14 @@
+#!/bin/sh
+# Steam's "Switch to Desktop": record the request, then let Steam shut down so
+# anland-game-mode can hand the display over to the desktop.
+case "${1:-}" in
+  ""|gamescope) exit 0 ;;
+esac
+state=${ANLAND_GAME_MODE_STATE:-}
+if [ -z "$state" ] || [ ! -d "$state" ]; then
+  echo "steamos-session-select: not inside anland-game-mode" >&2
+  exit 1
+fi
+printf 'desktop\n' > "$state/session-request.tmp" && mv -f "$state/session-request.tmp" "$state/session-request"
+"${ANLAND_STEAM_BIN:-steam}" -shutdown >/dev/null 2>&1 &
+exit 0

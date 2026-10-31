@@ -97,8 +97,11 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
         void onGrabbedTouch(MotionEvent ev);
         /** Release the previous touchscreen stream before its new owner sends input. */
         void onTouchscreenGrabChanged(boolean grabbed);
-        /** A {@link Touchpad} wired to the host's cursor, for a grabbed physical pad. */
-        Touchpad newGrabbedPad();
+        /**
+         * A {@link Touchpad} wired to the host's cursor, for a grabbed physical pad
+         * with this many raw units per millimetre (0 when unknown).
+         */
+        Touchpad newGrabbedPad(float unitsPerMmX, float unitsPerMmY);
         /** Raw relative counts and per-device speed measured at evdev sample time. */
         void movePointerRelative(float dx, float dy, float speedCountsPerSecond);
         void sendKey(int action, int evdev);
@@ -466,7 +469,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
 
     @Override
     public void onDevice(int dev, int cls, int minX, int maxX, int minY, int maxY,
-                         int flags) {
+                         int resX, int resY, int flags) {
         if (dev < 0 || dev >= devs.length)
             return;
         Dev d = new Dev();
@@ -489,7 +492,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
                     break;
                 }
             }
-            d.pad = host.newGrabbedPad();
+            d.pad = host.newGrabbedPad(resX, resY);
             d.pad.setInputBounds(minX, minY, maxX - minX, maxY - minY);
         }
         devs[dev] = d;
@@ -752,7 +755,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
             d.touch.endFrame();
             resolveTwin(d);
             if (!d.dup)
-                dispatchContacts(d);
+                dispatchContacts(d, eventTimeUs * 1000L);
         }
     }
 
@@ -798,7 +801,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
      * then the new contacts. That is the order Android's own input reader uses,
      * and it is what keeps the pointer indices valid inside each event.
      */
-    private void dispatchContacts(Dev d) {
+    private void dispatchContacts(Dev d, long frameTimeNs) {
         int nDesired = d.touch.gather(desiredSlots);
         if (nDesired > 0)
             d.contactFrames++;
@@ -813,14 +816,14 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
                 continue;
             int action = d.activeCount == 1
                     ? MotionEvent.ACTION_UP : MotionEvent.ACTION_POINTER_UP;
-            emit(d, action, i, d.active, d.activeCount, now);
+            emit(d, action, i, d.active, d.activeCount, now, frameTimeNs);
             System.arraycopy(d.active, i + 1, d.active, i, d.activeCount - i - 1);
             d.activeCount--;
         }
 
         // 2. everything still down, moving together
         if (d.activeCount > 0)
-            emit(d, MotionEvent.ACTION_MOVE, -1, d.active, d.activeCount, now);
+            emit(d, MotionEvent.ACTION_MOVE, -1, d.active, d.activeCount, now, frameTimeNs);
 
         // 3. contacts that appeared
         for (int i = 0; i < nDesired; i++) {
@@ -834,10 +837,10 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
             d.activeGeneration[slot] = d.touch.generation[slot];
             if (d.activeCount == 1) {
                 d.downTime = now;
-                emit(d, MotionEvent.ACTION_DOWN, -1, d.active, 1, now);
+                emit(d, MotionEvent.ACTION_DOWN, -1, d.active, 1, now, frameTimeNs);
             } else {
                 emit(d, MotionEvent.ACTION_POINTER_DOWN, insert, d.active,
-                        d.activeCount, now);
+                        d.activeCount, now, frameTimeNs);
             }
         }
         for (int i = 0; i < d.activeCount; i++) {
@@ -855,8 +858,13 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
         return false;
     }
 
+    /**
+     * frameTimeNs is the evdev frame's own timestamp, which the pad's cursor
+     * curve measures speed from; eventTime stays on the uptime clock the
+     * gesture timers use.
+     */
     private void emit(Dev d, int action, int actionIndex, int[] slots, int count,
-                      long eventTime) {
+                      long eventTime, long frameTimeNs) {
         if (d.dup)
             return;
         MotionEvent ev = buildMotionEvent(d, action, actionIndex, slots, count,
@@ -866,7 +874,7 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
         try {
             if (d.pad != null) {
                 syncPadOutput(d);
-                d.pad.onTouch(ev);
+                d.pad.onTouch(ev, frameTimeNs);
             } else {
                 host.onGrabbedTouch(ev);
             }
@@ -962,7 +970,8 @@ final class ImmersiveMode implements InputGrabTransport.Listener {
             if (d == null)
                 continue;
             if (d.activeCount > 0) {
-                emit(d, MotionEvent.ACTION_CANCEL, -1, d.active, d.activeCount, now);
+                emit(d, MotionEvent.ACTION_CANCEL, -1, d.active, d.activeCount, now,
+                        now * 1_000_000L);
                 d.activeCount = 0;
             }
             d.touch.clear();

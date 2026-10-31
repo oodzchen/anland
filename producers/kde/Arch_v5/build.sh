@@ -77,6 +77,7 @@ prepare_kwin_stage() {
     mkdir -p "$KWIN_STAGE" "$KWIN_OVERLAY_ROOT/kwin" "$KWIN_SRCDEST_DIR" "$PKGDEST_DIR" "$KWIN_BUILDDIR"
     install -m644 "$SCRIPT_DIR/PKGBUILD" "$KWIN_STAGE/PKGBUILD"
     install -m644 "$KWIN_PATCH" "$KWIN_STAGE/kwin.patch"
+    install -m644 "$SCRIPT_DIR/startup.sh" "$KWIN_STAGE/startup.sh"
 
     # Match the upstream Git checkout path for the self-contained overlay.
     # -L/-h dereference the libdisplay_producer symlinks: the packaged overlay
@@ -84,12 +85,13 @@ prepare_kwin_stage() {
     cp -aL "$BACKEND_SRC/src" "$KWIN_OVERLAY_ROOT/kwin/"
     tar -chf "$KWIN_STAGE/anland-overlay.tar" -C "$KWIN_OVERLAY_ROOT" "kwin/src/backends/anland"
     # Freeze all local inputs in the staged makepkg recipe, not just upstream.
-    local release_sha patch_sha overlay_sha
+    local release_sha patch_sha overlay_sha startup_sha
     release_sha="$(source "$KWIN_STAGE/PKGBUILD"; printf '%s' "${sha256sums[0]}")"
     patch_sha="$(sha256sum "$KWIN_STAGE/kwin.patch" | cut -d' ' -f1)"
     overlay_sha="$(sha256sum "$KWIN_STAGE/anland-overlay.tar" | cut -d' ' -f1)"
-    printf '\n# Generated local input checksums.\nsha256sums=(\x27%s\x27 \x27%s\x27 \x27%s\x27)\n' \
-        "$release_sha" "$patch_sha" "$overlay_sha" >> "$KWIN_STAGE/PKGBUILD"
+    startup_sha="$(sha256sum "$KWIN_STAGE/startup.sh" | cut -d' ' -f1)"
+    printf '\n# Generated local input checksums.\nsha256sums=(\x27%s\x27 \x27%s\x27 \x27%s\x27 \x27%s\x27)\n' \
+        "$release_sha" "$patch_sha" "$overlay_sha" "$startup_sha" >> "$KWIN_STAGE/PKGBUILD"
 }
 
 export JOBS="${JOBS:-$(nproc)}"
@@ -162,7 +164,8 @@ cat <<EOF
 
 Done. KWin 6.8.0 was built for aarch64 (BUILD_XWAYLAND=$BUILD_XWAYLAND).
 Package artifacts: $PKGDEST_DIR
-The packages keep the names 'xorg-xwayland' and 'kwin'; KWin uses pkgrel 1.1.
+The packages keep the names 'xorg-xwayland' and 'kwin'; KWin uses pkgrel 1.2.
+It also installs this directory's startup.sh as /usr/bin/kde-anland.
 EOF
 
 if [[ "$INSTALL" == '1' ]]; then

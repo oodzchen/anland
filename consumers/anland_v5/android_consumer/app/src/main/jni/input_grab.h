@@ -19,7 +19,8 @@
 
 /* rtype */
 #define IGRAB_REC_HELLO   1   /* value=version, aux[0]=grabbed count, aux[1]=pid */
-#define IGRAB_REC_DEVICE  2   /* opened device, also on hotplug/state change */
+#define IGRAB_REC_DEVICE  2   /* opened device, also on hotplug/state change;
+                               * code/value = X/Y units per mm, 0 if unknown */
 #define IGRAB_REC_READY    3  /* initial setup settled; aux[0]=controlled count */
 #define IGRAB_REC_EVENT   4   /* etype/code/value = evdev type/code/value */
 #define IGRAB_REC_BYE     5   /* value = IGRAB_BYE_*; helper is exiting */

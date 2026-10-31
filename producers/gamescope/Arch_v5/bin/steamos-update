@@ -1,0 +1,6 @@
+#!/bin/sh
+# Updates come from pacman and Steam's own client updater; 7 means "no update".
+case "${1:-}" in
+  --supports-duplicate-detection) exit 0 ;;
+esac
+exit 7

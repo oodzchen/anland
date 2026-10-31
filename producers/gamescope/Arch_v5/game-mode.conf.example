@@ -1,0 +1,30 @@
+# ~/.config/anland/game-mode.conf: KEY=VALUE lines, read without shell evaluation.
+# The environment wins over this file; this file wins over /run/droidspaces.env.
+
+# inherit keeps the Mesa driver chosen in Droidspaces (Advanced Options);
+# kgsl or zink forces one for game mode only.
+#ANLAND_GL_DRIVER=inherit
+
+# Steam is detected through ~/.steam/root, ~/.steam/steam, ~/.local/share/Steam,
+# ~/.steam/debian-installation, then `steam` in PATH.
+#STEAM_ROOT=/home/user/.local/share/Steam
+#ANLAND_STEAM_BIN=/home/user/.local/share/Steam/steamrtarm64/steam
+
+# Defaults to the channel in $STEAM_ROOT/package/beta.
+#ANLAND_STEAM_BETA=steamdeck_publicbeta
+#ANLAND_STEAM_ARGS=-language schinese
+# Steam's own UI: software (default; complete, animations stutter) or vulkan
+# (experimental; smooth, but Steam's side menu and Quick Access stay invisible).
+#ANLAND_STEAM_CEF=software
+# Height Steam's UI renders at, width following the screen (0 lets Steam choose).
+# Lower responds faster in software rendering; text gets softer.
+#ANLAND_STEAM_UI_HEIGHT=800
+# TU_DEBUG for the Steam client only (default sysmem); empty keeps the inherited value.
+#ANLAND_STEAM_TU_DEBUG=sysmem
+
+#ANLAND_GAMESCOPE_ARGS=
+#ANLAND_MANGOAPP=auto
+#ANLAND_XWAYLAND_COUNT=2
+
+# Command run after Steam's "Switch to Desktop"; empty disables the handoff.
+#ANLAND_DESKTOP_CMD=kde-anland

@@ -17,8 +17,13 @@ import java.util.Collection;
 interface InputGrabTransport {
     int EVENT_STRIDE = 6;
     interface Listener {
-        /** Opened device, initially or on hotplug/state changes. Ranges are raw ABS units. */
-        void onDevice(int dev, int cls, int minX, int maxX, int minY, int maxY, int flags);
+        /**
+         * Opened device, initially or on hotplug/state changes. Ranges are raw ABS
+         * units; resX/resY are those units per millimetre, 0 when the driver does
+         * not say.
+         */
+        void onDevice(int dev, int cls, int minX, int maxX, int minY, int maxY,
+                      int resX, int resY, int flags);
 
         /** Initial setup settled. Hotplug and device-state records may still follow. */
         void onReady(int grabbedCount);

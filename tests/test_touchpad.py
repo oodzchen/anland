@@ -10,6 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'consumers/anland_v5/android_consumer/app/src/main/java/com/anland/consumer/Touchpad.java'
+ACCEL = SOURCE.with_name('AndroidTouchpadAccel.java')
 STUBS = {
 'android/content/Context.java': 'package android.content; public class Context {}',
 'android/util/Log.java': 'package android.util; public class Log { public static int d(String t,String s){return 0;} }',
@@ -44,9 +45,17 @@ public class MotionEvent {
 import android.view.MotionEvent;
 import static android.view.MotionEvent.*;
 public class TouchpadTest implements Touchpad.Output {
- int buttons,scrolls,touches,clickpad; float moved; Touchpad pad;
+ int buttons,scrolls,touches,clickpad; float moved,mx,my; Touchpad pad;
  TouchpadTest(boolean tap,int guard){pad=new Touchpad(new android.content.Context(),this,true);pad.setTapFilter(tap,guard,false);}
  void e(int a,int i,long t,float... xy){pad.onTouch(new MotionEvent(a,i,t,xy));}
+ // A grabbed OnePlus keyboard pad: 2764x1630 units at 23 units/mm on a 3392x2400 view.
+ static TouchpadTest grabbed(){TouchpadTest x=new TouchpadTest(true,0);x.pad.setInputBounds(0,0,2764,1630);
+  x.pad.setOutputSize(3392,2400);x.pad.setNativeAcceleration(new AndroidTouchpadAccel(),23,23);return x;}
+ // One finger travelling (dx,dy) pad units per 8 ms hardware frame for n frames.
+ void slide(long t,float dx,float dy,int n){float px=1000,py=800;long ns=t*1_000_000L;
+  pad.onTouch(new MotionEvent(ACTION_DOWN,0,t,px,py),ns);
+  for(int i=1;i<=n;i++){px+=dx;py+=dy;ns+=8_000_000L;pad.onTouch(new MotionEvent(ACTION_MOVE,0,t+i*8,px,py),ns);}
+  pad.onTouch(new MotionEvent(ACTION_UP,0,t+n*8+8,px,py),ns+8_000_000L);}
  void tap(long t){e(ACTION_DOWN,0,t,10,10);e(ACTION_UP,0,t+20,10,10);}
  void scroll(long t, boolean firstLifts){
   e(ACTION_DOWN,0,t,10,10);e(ACTION_POINTER_DOWN,1,t+10,10,10,30,10);
@@ -58,7 +67,7 @@ public class TouchpadTest implements Touchpad.Output {
  void press(long t,float... xy){clickpad=pad.clickpadButton(new MotionEvent(ACTION_MOVE,0,t,xy));pad.onPhysicalButton(true,true);}
  void release(){pad.onPhysicalButton(false,true);}
  void check(boolean ok,String name){if(!ok)throw new AssertionError(name);}
- public void onMotion(float x,float y){moved+=Math.abs(x)+Math.abs(y);} public void onScroll(int a,float v){scrolls++;}
+ public void onMotion(float x,float y){moved+=Math.abs(x)+Math.abs(y);mx+=x;my+=y;} public void onScroll(int a,float v){scrolls++;}
  public void onButton(int b,boolean p){buttons++;}
  public void onTouch(int a,int i,float x,float y){touches++;} public void onTouchFrame(){}
  public float cursorX(){return 100;} public float cursorY(){return 100;}
@@ -144,6 +153,16 @@ public class TouchpadTest implements Touchpad.Output {
   x.e(ACTION_DOWN,0,3000,300,550);x.press(3100,300,550);x.check(x.clickpad==0x110,"bottom-left: left button");
   x.release();x.e(ACTION_UP,0,3200,300,550);
   x.press(4000,700,550);x.check(x.clickpad==0x111,"no baseline: the landing contact decides");
+  // Grabbed pad on Android's curve: 1 mm/frame-slow travel is 2.0416 gain at 133 DPI,
+  // the same on both axes even though the pad maps onto the view anisotropically.
+  x=grabbed();x.slide(1000,1,0,46);
+  x.check(Math.abs(x.mx-2*2.0416f*133/25.4f)<0.05f && x.my==0,"slow pad travel matches Android's 10.7 px/mm");
+  x=grabbed();x.slide(1000,0,1,46);
+  x.check(Math.abs(x.my-2*2.0416f*133/25.4f)<0.05f && x.mx==0,"vertical travel matches horizontal");
+  // 46 units per 8 ms is 250 mm/s: gain 9.6256 - 708.83584/250 in the top segment.
+  x=grabbed();x.slide(1000,46,0,10);
+  x.check(Math.abs(x.mx-20*(9.6256f-708.83584f/250)*133/25.4f)<1f,"fast travel follows the top curve segment");
+  x.check(x.buttons==0,"native motion still never taps");
   System.out.println("PASS: touchpad regression scenarios including lagging contacts, pinch and clickpad presses");
  }
 }'''
@@ -152,5 +171,5 @@ with tempfile.TemporaryDirectory(prefix='anland-touchpad-test-') as tmp:
     tmp=Path(tmp)
     for name,contents in STUBS.items():
         p=tmp/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(contents)
-    subprocess.run(['javac','-d',str(tmp),str(SOURCE),*[str(tmp/p) for p in STUBS]],check=True)
+    subprocess.run(['javac','-d',str(tmp),str(SOURCE),str(ACCEL),*[str(tmp/p) for p in STUBS]],check=True)
     subprocess.run(['java','-cp',str(tmp),'com.anland.consumer.TouchpadTest'],check=True)

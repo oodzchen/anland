@@ -147,6 +147,7 @@ struct dev_entry {
     int  multitouch;
     int  clickpad;   /* one button under the pad: BTN_LEFT alone means "a click" */
     int  min_x, max_x, min_y, max_y;
+    int  res_x, res_y;  /* units per mm on the coordinate axes; 0 when unknown */
     int  toggle_capable; /* cached: the session toggle key exists on this node */
     char name[256]; /* full identity, not the shortened discovery/display label */
 };
@@ -953,7 +954,8 @@ static int read_capabilities(int fd, const char *path, int type, void *bits, siz
     return -1;
 }
 
-static void read_abs_range(int fd, const char *path, int axis, int *min, int *max)
+static void read_abs_range(int fd, const char *path, int axis, int *min, int *max,
+                           int *res)
 {
     struct input_absinfo info;
     if (query_input(fd, EVIOCGABS(axis), &info) < 0) {
@@ -967,6 +969,7 @@ static void read_abs_range(int fd, const char *path, int axis, int *min, int *ma
     }
     *min = info.minimum;
     *max = info.maximum;
+    *res = info.resolution > 0 ? info.resolution : 0;
 }
 
 static int is_builtin_bus(unsigned int bus)
@@ -1125,15 +1128,17 @@ static int inspect_device(const char *path, struct dev_entry *out, int do_grab)
             || (click && !TEST_BIT(BTN_RIGHT, key));
     if (out->cls == IGRAB_CLASS_TOUCHSCREEN || out->cls == IGRAB_CLASS_TOUCHPAD) {
         if (mt) {
-            read_abs_range(fd, path, ABS_MT_POSITION_X, &out->min_x, &out->max_x);
-            read_abs_range(fd, path, ABS_MT_POSITION_Y, &out->min_y, &out->max_y);
+            read_abs_range(fd, path, ABS_MT_POSITION_X, &out->min_x, &out->max_x,
+                           &out->res_x);
+            read_abs_range(fd, path, ABS_MT_POSITION_Y, &out->min_y, &out->max_y,
+                           &out->res_y);
         }
         /* Single-touch panels only have ABS_X/ABS_Y; multitouch ones still use
          * them as a fallback when the MT axes report nothing usable. */
         if (out->max_x <= out->min_x && TEST_BIT(ABS_X, abs))
-            read_abs_range(fd, path, ABS_X, &out->min_x, &out->max_x);
+            read_abs_range(fd, path, ABS_X, &out->min_x, &out->max_x, &out->res_x);
         if (out->max_y <= out->min_y && TEST_BIT(ABS_Y, abs))
-            read_abs_range(fd, path, ABS_Y, &out->min_y, &out->max_y);
+            read_abs_range(fd, path, ABS_Y, &out->min_y, &out->max_y, &out->res_y);
         if (out->max_x <= out->min_x || out->max_y <= out->min_y) {
             LOGE("%s '%s': no usable touch coordinate range", path, out->name);
             close(fd);
@@ -1508,6 +1513,8 @@ static void fill_device_record(struct igrab_rec *rec, int idx)
     rec->rtype = IGRAB_REC_DEVICE;
     rec->dev   = (uint16_t)idx;
     rec->etype = (uint16_t)de->cls;
+    rec->code  = (uint16_t)(de->res_x > 0xFFFF ? 0 : de->res_x);
+    rec->value = de->res_y;
     rec->aux[IGRAB_AUX_MIN_X] = de->min_x;
     rec->aux[IGRAB_AUX_MAX_X] = de->max_x;
     rec->aux[IGRAB_AUX_MIN_Y] = de->min_y;

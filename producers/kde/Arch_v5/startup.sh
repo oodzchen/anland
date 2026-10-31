@@ -34,7 +34,8 @@ if [[ "$START_PLASMA" == 1 ]]; then
         echo 'Plasma uses kwin_wayland from PATH; KWIN_BIN requires START_PLASMA=0.' >&2
         exit 1
     }
-    [[ -x /usr/lib/xdg-desktop-portal ]] || {
+    # Droidspaces' droidspaces-noop-xdg-desktop-portals provides the package without the binary.
+    pacman -Qq xdg-desktop-portal >/dev/null 2>&1 || [[ -x /usr/lib/xdg-desktop-portal ]] || {
         echo 'Missing /usr/lib/xdg-desktop-portal; reinstall xdg-desktop-portal.' >&2
         exit 1
     }

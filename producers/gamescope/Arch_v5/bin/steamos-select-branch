@@ -1,0 +1,5 @@
+#!/bin/sh
+case "${1:-}" in
+  -l|-c) printf 'rel\n' ;;
+esac
+exit 0

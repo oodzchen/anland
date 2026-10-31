@@ -36,6 +36,7 @@ PRoot、chroot 和 Droidspaces 是承载 Linux 用户空间的不同方式。无
   - [从源码构建](#source-build)
   - [使用预编译包或 RootFS](#prebuilt)
 - [🚀 第 4 步：启动桌面](#start-desktop)
+- [🎮 游戏模式：不启动桌面的 Steam 大屏幕](#game-mode)
 - [🛠️ 常见问题](#troubleshooting)
 
 ---
@@ -272,6 +273,7 @@ Linux 环境中的桌面必须使用带 Anland 后端的合成器。当前 Anlan
    | KDE Plasma | Ubuntu 26.04 | `producers/kde/ubuntu2604_v5` |
    | KDE Plasma | Fedora 43 | `producers/kde/Fedora43_v5` |
    | KDE Plasma | Arch Linux | `producers/kde/Arch_v5` |
+   | Steam 游戏模式（Gamescope） | Arch Linux | `producers/gamescope/Arch_v5`，见[游戏模式](#game-mode) |
    | GNOME | Debian 13 | `producers/gnome/Debian13_v5` |
    | GNOME | Ubuntu 26.04 | `producers/gnome/Ubuntu2604_v5` |
 
@@ -378,6 +380,82 @@ consumer 与 producer 连接成功后，桌面画面会自动出现。
 > [!IMPORTANT]
 >
 > 不要用发行版自带、未经 Anland 补丁处理的 `kwin_wayland` 或 Mutter 启动会话。普通 Wayland 合成器即使成功启动，也不会向 Anland 提交画面。
+
+---
+
+<a id="game-mode"></a>
+
+## 🎮 游戏模式：不启动桌面的 Steam 大屏幕
+
+游戏模式类似 SteamOS 的游戏模式：Gamescope 通过 Anland 后端直接输出到 Anland 窗口，并运行 Steam 大屏幕（`-gamepadui -steamos3`），不启动 KWin 和 Plasma。目前支持 Arch Linux ARM（aarch64），在 Droidspaces 下测试。
+
+**准备工作**
+
+- 容器内已安装 ARM64 Steam 客户端，例如 `~/.local/share/Steam/steamrtarm64/steam`。安装方法和更新频道参考 [DroidDeck](https://github.com/Droid-Deck/DroidDeck)；Anland 不负责安装 Steam。
+- Droidspaces 中开启 **GPU Access** 和 **Anland Display**，关闭 **Configure VirGL 3D Acceleration** 和 **Configure PulseAudio**。非 root 用户需要加入 `droidspaces-gpu` 组。
+- Steam Input 需要用户能读取 `/dev/input/event*` 和 `/dev/hidraw*`，并能写入 `/dev/uinput`。在 Anland 应用中开启沉浸模式（以及自动进入），Android 才会把手柄交给容器。
+- 音频需要安装 `pipewire`、`wireplumber` 和 `pipewire-pulse`。要使用 Steam 的性能叠加层，请安装 `mangohud`。
+
+**构建和安装**
+
+```sh
+cd producers/gamescope/Arch_v5
+INSTALL=1 ./build.sh
+```
+
+软件包 `gamescope-anland` 会替换发行版的 `gamescope`。它复用 `producers/gamescope/SteamOS_v5` 的 Gamescope 补丁，并从 `producers/kde/Arch_v5` 构建打过补丁的 Xwayland。如果已经安装了这个 Xwayland，加上 `BUILD_XWAYLAND=0`。`JOBS` 默认为 CPU 核心数减一。
+
+**启动**
+
+```sh
+anland-game-mode --check   # 显示检测到的 Steam、驱动和冲突
+anland-game-mode           # 启动游戏模式，然后在 Droidspaces 中选择 Launch Anland
+anland-game-mode -- vkcube # 用其他客户端测试显示链路
+```
+
+发行版自带的 `gamescope` 包没有 Anland 后端。`anland-game-mode` 启动前会通过 `gamescope --help` 检查是否有 `anland` 后端，并分别提示以下情况：Gamescope 未安装、装的是发行版原版、缺少动态库无法启动。提示中会给出构建 `gamescope-anland` 的命令。可以用 `GAMESCOPE_BIN` 指定其他构建。
+
+Steam 电源菜单中的选项：
+
+- **切换到桌面**：结束游戏模式，并在同一个 socket 上启动 KDE Plasma（`kde-anland`）。Android 窗口保持打开并自动重连。如果没有安装 KDE 软件包提供的 `kde-anland`，游戏模式会使用随包安装的 `producers/kde/Arch_v5/startup.sh` 副本。
+- **重启**：重启 Steam。
+- **关机**：结束游戏模式。
+
+从 KDE Plasma 返回游戏模式：在应用菜单中打开 **游戏模式**，也可以把它添加到桌面或面板。它会先检查游戏模式能否启动；不能启动时，会在对话框中说明原因，并且不会注销。检查通过后，它会关闭桌面版 Steam、注销 Plasma，然后在同一个 socket 上启动 `anland-game-mode`。最近一次切换的日志在 `~/.local/state/anland/switch-to-game-mode.log`。在源码目录中运行 `producers/gamescope/Arch_v5/switch-to-game-mode.sh` 效果相同，使用的是该源码目录里的游戏模式脚本。
+
+如需登录后自动进入游戏模式，运行 `systemctl --user enable anland-game-mode.service`。
+
+**驱动与 Droidspaces 设置**
+
+游戏模式会保留已经设置的值，包括在 Droidspaces **Advanced Options** 中填写的环境变量（也会从 `/run/droidspaces.env` 读取），只补充缺少的变量：
+
+- 未设置 `MESA_LOADER_DRIVER_OVERRIDE`/`GALLIUM_DRIVER` 时，若 `/dev/kgsl-3d0` 和 `kgsl_dri.so` 都存在，就使用原生 kgsl 驱动，否则使用 Zink。
+- 未设置 `VK_DRIVER_FILES`/`VK_ICD_FILENAMES` 时，使用 Turnip ICD。
+- `TU_DEBUG`（例如 Droidspaces 推荐的 `noconform`）保持不变。
+- `GALLIUM_DRIVER=virpipe`（VirGL）会被报告为冲突。Droidspaces 的 PulseAudio 服务器会被忽略，因为 Anland 音频使用 PipeWire。
+
+**设置项**
+
+可以写在环境变量中，或写在 `~/.config/anland/game-mode.conf`（每行 `KEY=VALUE`，示例文件安装在 `/usr/share/doc/gamescope-anland/game-mode.conf.example`）。环境变量优先于配置文件，配置文件优先于 `/run/droidspaces.env`。
+
+| 变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `ANLAND_GL_DRIVER` | `inherit` | `inherit` 保留现有驱动；`kgsl` 或 `zink` 只在游戏模式中强制使用指定驱动。 |
+| `STEAM_ROOT` | 自动检测 | Steam 数据目录。依次查找 `~/.steam/root`、`~/.steam/steam`、`~/.local/share/Steam`、`~/.steam/debian-installation`。 |
+| `ANLAND_STEAM_BIN` | 自动检测 | Steam 可执行文件。找不到 ARM64 客户端时，使用 `PATH` 中的 `steam`。 |
+| `ANLAND_STEAM_BETA` | `package/beta` | 作为 `-clientbeta` 传入的 Steam 客户端频道。 |
+| `ANLAND_STEAM_ARGS` | 空 | 额外的 Steam 参数，按空格分隔。 |
+| `ANLAND_STEAM_CEF` | `software` | Steam 自身界面的渲染方式：`software`（功能完整，但 Chromium 合成线程占满一个核心，动画卡顿）或 `vulkan`（实验性：流畅，但 Steam 侧边菜单和快速访问菜单无法显示）。游戏不受影响。 |
+| `ANLAND_STEAM_UI_HEIGHT` | `800` | Steam 界面的渲染高度，宽度按屏幕比例计算。软件渲染时值越低响应越快，但文字更模糊；`0` 表示由 Steam 决定（1920×1080）。游戏不受影响。 |
+| `ANLAND_STEAM_TU_DEBUG` | `sysmem` | 只对 Steam 客户端生效的 `TU_DEBUG`；不设为 `sysmem` 时，Steam 网页界面的 GPU 进程会在 Turnip 上崩溃。设为空则保留继承的值。原来的值会导出为 `STEAM_ARM64_GAME_TU_DEBUG`，供 Proton 包装脚本为游戏恢复。 |
+| `ANLAND_GAMESCOPE_ARGS` | 空 | 额外的 Gamescope 参数。 |
+| `ANLAND_MANGOAPP` | `auto` | `1`、`0` 或 `auto`（安装了 `mangoapp` 时开启）。 |
+| `ANLAND_XWAYLAND_COUNT` | `2` | Xwayland 服务器数量；Steam 自身界面单独使用一个。 |
+| `ANLAND_DESKTOP_SERVICE` | `desktop-session.service` | 点击**切换到桌面**后，若该系统单元存在（Droidspaces 的桌面会话）则启动它；软件包附带的 polkit 规则允许 `wheel` 组用户免密码启动。设为空则跳过。 |
+| `ANLAND_DESKTOP_CMD` | KDE Arch 入口 | 未使用桌面单元或其启动失败时，点击**切换到桌面**后运行的命令；设为空则不运行。未设置时依次使用 `kde-anland`、随游戏模式一起安装的 `producers/kde/Arch_v5/startup.sh` 副本。 |
+| `ANLAND_SOCKET` | `/run/display.sock` | daemon socket。 |
+
+要比较驱动性能，可以分别用 `ANLAND_GL_DRIVER=kgsl` 和 `ANLAND_GL_DRIVER=zink` 启动同一个游戏，在性能叠加层中观察帧时间。Steam 自身界面单独渲染，见 `ANLAND_STEAM_CEF`。
 
 ---
 

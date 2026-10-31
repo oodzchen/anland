@@ -1,0 +1,14 @@
+[Unit]
+Description=Steam game mode on Gamescope Anland
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/anland-game-mode
+Restart=no
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
