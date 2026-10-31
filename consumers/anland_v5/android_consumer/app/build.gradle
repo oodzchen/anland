@@ -33,8 +33,6 @@ def gitBuildId = gitBranch.isEmpty() ? gitCommitId : gitBranch
 def gitTag = gitOutput(['git', 'describe', '--tags', '--abbrev=0'], "unknown")
 // Number of commits reachable from HEAD, used as a monotonic versionCode.
 def gitCommitCount = gitOutput(['git', 'rev-list', '--count', 'HEAD'], "1") as Integer
-// "-dirty" when the working tree has uncommitted changes at build time.
-def gitDirty = gitOutput(['git', 'status', '--porcelain'], "").isEmpty() ? "" : "-dirty"
 // A branch release tag (e.g. "5.26-legacy-custom") already names its branch, so
 // a build of that branch must not repeat it as "5.26-legacy-custom-legacy-custom".
 def gitVersion = gitTag.endsWith("-" + gitBuildId) ? gitTag : "${gitTag}-${gitBuildId}"
@@ -52,7 +50,7 @@ android {
         minSdk 30
         targetSdk 36
         versionCode gitCommitCount
-        versionName "${gitVersion}${gitDirty}"
+        versionName gitVersion
 
         ndk {
             abiFilters 'arm64-v8a'

@@ -58,8 +58,8 @@ jobs:
         run: |
           chmod +x gradlew
           # Pass debug signing as project properties on the command line instead of
-          # appending to the tracked gradle.properties, which would dirty the working
-          # tree and make the git-derived versionName ("...-dirty") wrong on CI.
+          # appending to the tracked gradle.properties, which would leave the
+          # working tree modified on CI.
           ./gradlew ${{ matrix.task }} \
             -Pandroid.injected.signing.store.file="$HOME/.android/debug.keystore" \
             -Pandroid.injected.signing.store.password=android \
