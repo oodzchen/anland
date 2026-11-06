@@ -139,8 +139,8 @@
     <string name="pointer_capture_hint">Locks an external mouse or touchpad to the desktop view and uses relative movement, so reaching the top or bottom edge will not reveal Android system bars. Use Android Back to release temporarily; click the desktop view to capture again. Screen touch input is unaffected.</string>
     <string name="pointer_capture_released">External pointer released. Click the desktop view to capture it again.</string>
     <string name="touchpad_native_accel_switch">Match Android touchpad acceleration</string>
-    <string name="touchpad_native_accel_hint">An external touchpad, captured or in immersive mode, moves the cursor with Android\'s own acceleration curve, as far as the Android cursor would for the same finger movement. It follows the touchpad speed in Android settings; the sensitivity slider below then applies only to the on-screen touchpad and mice.</string>
-    <string name="mouse_sensitivity_label">Touchpad Pointer Sensitivity (Acceleration)</string>
+    <string name="touchpad_native_accel_hint">An external touchpad, captured or in immersive mode, uses Android\'s own acceleration curve and touchpad speed setting. The sensitivity slider below scales the resulting movement without changing the curve: 1x matches Android, 2x moves twice as far. When this is off, or for the on-screen touchpad and mice, the slider controls legacy acceleration instead. Scrolling is unaffected. Re-enter immersive mode after changing settings.</string>
+    <string name="mouse_sensitivity_label">Touchpad Pointer Sensitivity (Speed / Acceleration)</string>
     <string name="mouse_accel_value">%1$.1fx</string>
     <string name="scroll_reverse_switch">Reverse scroll direction</string>
     <string name="scroll_reverse_hint">ON: content follows your fingers ("natural" scrolling). Applies to two-finger scrolling on both the on-screen and the physical touchpad.</string>

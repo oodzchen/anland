@@ -33,9 +33,12 @@ def gitBuildId = gitBranch.isEmpty() ? gitCommitId : gitBranch
 def gitTag = gitOutput(['git', 'describe', '--tags', '--abbrev=0'], "unknown")
 // Number of commits reachable from HEAD, used as a monotonic versionCode.
 def gitCommitCount = gitOutput(['git', 'rev-list', '--count', 'HEAD'], "1") as Integer
-// A branch release tag (e.g. "5.26-legacy-custom") already names its branch, so
-// a build of that branch must not repeat it as "5.26-legacy-custom-legacy-custom".
-def gitVersion = gitTag.endsWith("-" + gitBuildId) ? gitTag : "${gitTag}-${gitBuildId}"
+// An exact release tag is the version on both branch and detached-HEAD builds
+// (including CI tag checkouts); never append a branch or commit to that tag.
+def gitExactTag = gitOutput(['git', 'describe', '--tags', '--exact-match', 'HEAD'], "")
+// Between releases, retain the existing branch/commit naming convention.
+def gitVersion = !gitExactTag.isEmpty() ? gitExactTag :
+        (gitTag.endsWith("-" + gitBuildId) ? gitTag : "${gitTag}-${gitBuildId}")
 
 android {
     namespace 'com.anland.consumer'

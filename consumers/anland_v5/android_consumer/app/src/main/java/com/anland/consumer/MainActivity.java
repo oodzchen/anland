@@ -148,7 +148,7 @@ public class MainActivity extends Activity
 
     // ==================== 触摸板相关设置 ====================
     public static final String KEY_TOUCHPAD_MODE = "touchpad_mode";
-    public static final String KEY_MOUSE_ACCEL = "mouse_speed"; // 名称仍为 speed，实际控制加速度强度
+    public static final String KEY_MOUSE_ACCEL = "mouse_speed"; // 原生曲线输出倍率 / 旧版加速度强度
     // Two-finger scroll tuning, shared by the on-screen and captured touchpads.
     public static final String KEY_SCROLL_SPEED = "scroll_speed";
     public static final String KEY_SCROLL_REVERSE = "scroll_reverse";
@@ -166,7 +166,7 @@ public class MainActivity extends Activity
     // keep the old absolute-pointer behaviour until the user enables it.
     public static final String KEY_POINTER_CAPTURE = "pointer_capture";
     // Drive a captured touchpad with Android's own acceleration curve (see
-    // AndroidTouchpadAccel) instead of the mouse_speed curve.
+    // AndroidTouchpadAccel), using mouse_speed as a fixed output multiplier.
     public static final String KEY_TOUCHPAD_NATIVE_ACCEL = "touchpad_native_accel";
     // Hidden Settings.System key Android's touchpad curve follows (-7 ~ +7).
     private static final String SETTING_TOUCHPAD_POINTER_SPEED = "touchpad_pointer_speed";
@@ -1460,9 +1460,9 @@ public class MainActivity extends Activity
     }
 
     /**
-     * Move the cursor as Android would for this frame of raw pad motion. Frames
-     * without motion still go through, since the curve's speed is measured from
-     * the previous frame whether or not it moved.
+     * Apply Android's curve to raw pad motion, then scale the output by the
+     * sensitivity setting. Frames without motion still go through, since the
+     * curve's speed is measured from the previous frame whether or not it moved.
      */
     private void sendCapturedTouchpadNativeMotion(MotionEvent event, int historyPos,
                                                   float dx, float dy) {
@@ -1470,7 +1470,8 @@ public class MainActivity extends Activity
                 capturedPadResolution(event, MotionEvent.AXIS_X),
                 capturedPadResolution(event, MotionEvent.AXIS_Y),
                 capturedTouchpadEventTimeNanos(event, historyPos));
-        movePointerBy(delta[0], delta[1]);
+        // Do not scale the raw axes: the curve must see the real finger speed.
+        movePointerBy(delta[0] * capturedTouchpadAccel, delta[1] * capturedTouchpadAccel);
     }
 
     /** A sample's hardware timestamp; below Android 14 only milliseconds exist. */

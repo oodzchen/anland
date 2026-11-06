@@ -45,7 +45,7 @@ public class MotionEvent {
 import android.view.MotionEvent;
 import static android.view.MotionEvent.*;
 public class TouchpadTest implements Touchpad.Output {
- int buttons,scrolls,touches,clickpad; float moved,mx,my; Touchpad pad;
+ int buttons,scrolls,touches,clickpad; float moved,mx,my,scrollX,scrollY; Touchpad pad;
  TouchpadTest(boolean tap,int guard){pad=new Touchpad(new android.content.Context(),this,true);pad.setTapFilter(tap,guard,false);}
  void e(int a,int i,long t,float... xy){pad.onTouch(new MotionEvent(a,i,t,xy));}
  // A grabbed OnePlus keyboard pad: 2764x1630 units at 23 units/mm on a 3392x2400 view.
@@ -67,7 +67,8 @@ public class TouchpadTest implements Touchpad.Output {
  void press(long t,float... xy){clickpad=pad.clickpadButton(new MotionEvent(ACTION_MOVE,0,t,xy));pad.onPhysicalButton(true,true);}
  void release(){pad.onPhysicalButton(false,true);}
  void check(boolean ok,String name){if(!ok)throw new AssertionError(name);}
- public void onMotion(float x,float y){moved+=Math.abs(x)+Math.abs(y);mx+=x;my+=y;} public void onScroll(int a,float v){scrolls++;}
+ public void onMotion(float x,float y){moved+=Math.abs(x)+Math.abs(y);mx+=x;my+=y;}
+ public void onScroll(int a,float v){scrolls++;if(a==0)scrollY+=v;else scrollX+=v;}
  public void onButton(int b,boolean p){buttons++;}
  public void onTouch(int a,int i,float x,float y){touches++;} public void onTouchFrame(){}
  public float cursorX(){return 100;} public float cursorY(){return 100;}
@@ -163,7 +164,45 @@ public class TouchpadTest implements Touchpad.Output {
   x=grabbed();x.slide(1000,46,0,10);
   x.check(Math.abs(x.mx-20*(9.6256f-708.83584f/250)*133/25.4f)<1f,"fast travel follows the top curve segment");
   x.check(x.buttons==0,"native motion still never taps");
-  System.out.println("PASS: touchpad regression scenarios including lagging contacts, pinch and clickpad presses");
+  // The slider scales only the native curve's output, never its input speed.
+  // Cover all four curve segments, system speeds, directions and slider limits.
+  for(int systemSpeed:new int[]{-7,0,7})for(float step:new float[]{1,8,16,46})
+   for(float[] direction:new float[][]{{1,0},{0,-1},{0.6f,0.8f}})
+    for(float multiplier:new float[]{0.5f,1,2,10}){
+     TouchpadTest base=grabbed(),scaled=grabbed();
+     AndroidTouchpadAccel baseCurve=new AndroidTouchpadAccel(),scaledCurve=new AndroidTouchpadAccel();
+     baseCurve.setSpeedSetting(systemSpeed);scaledCurve.setSpeedSetting(systemSpeed);
+     base.pad.setNativeAcceleration(baseCurve,23,23);scaled.pad.setNativeAcceleration(scaledCurve,23,23);
+     scaled.pad.setAccelStrength(multiplier);
+     base.slide(1000,step*direction[0],step*direction[1],8);
+     scaled.slide(1000,step*direction[0],step*direction[1],8);
+     x.check(base.moved>0 && Math.abs(scaled.mx-base.mx*multiplier)<0.02f
+      && Math.abs(scaled.my-base.my*multiplier)<0.02f,"native slider is a fixed output multiplier in every segment");
+    }
+  for(float requested:new float[]{0.1f,50f}){
+   TouchpadTest base=grabbed(),scaled=grabbed();scaled.pad.setAccelStrength(requested);
+   base.slide(1000,23,0,8);scaled.slide(1000,23,0,8);
+   float expected=requested<0.5f?0.5f:10f;
+   x.check(Math.abs(scaled.mx-base.mx*expected)<0.02f,"native multiplier respects slider limits");
+  }
+  TouchpadTest dragBase=grabbed(),dragScaled=grabbed();dragScaled.pad.setAccelStrength(2);
+  for(TouchpadTest drag:new TouchpadTest[]{dragBase,dragScaled}){
+   drag.e(ACTION_DOWN,0,1000,300,550);drag.e(ACTION_POINTER_DOWN,1,1100,300,550,400,200);
+   drag.press(1200,300,550,400,200);
+   for(int i=1;i<=10;i++)drag.e(ACTION_MOVE,0,1200+i*8,300,550,400+i*15,200);
+   drag.release();drag.e(ACTION_POINTER_UP,1,1400,300,550,550,200);drag.e(ACTION_UP,0,1420,300,550);
+  }
+  x.check(dragBase.mx>0 && Math.abs(dragScaled.mx-dragBase.mx*2)<0.02f,"native click-drag uses the same multiplier");
+  TouchpadTest scrollBase=grabbed(),scrollScaled=grabbed();scrollScaled.pad.setAccelStrength(10);
+  scrollBase.scroll(1000,false);scrollScaled.scroll(1000,false);
+  x.check(scrollBase.scrolls>0 && scrollBase.scrolls==scrollScaled.scrolls
+   && scrollBase.scrollX==scrollScaled.scrollX && scrollBase.scrollY==scrollScaled.scrollY,"native multiplier leaves scroll amounts unchanged");
+  TouchpadTest legacyLow=grabbed(),legacyHigh=grabbed();
+  legacyLow.pad.setNativeAcceleration(null,0,0);legacyHigh.pad.setNativeAcceleration(null,0,0);
+  legacyLow.pad.setAccelStrength(0.5f);legacyHigh.pad.setAccelStrength(10);
+  legacyLow.slide(1000,23,0,8);legacyHigh.slide(1000,23,0,8);
+  x.check(legacyLow.mx>0 && legacyHigh.mx>legacyLow.mx*2,"legacy acceleration slider still works");
+  System.out.println("PASS: touchpad regression scenarios including native speed multipliers, lagging contacts, pinch and clickpad presses");
  }
 }'''
 }

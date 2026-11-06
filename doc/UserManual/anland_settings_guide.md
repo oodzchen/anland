@@ -222,13 +222,14 @@ This is useful for games and continuous pointer movement. Press Android Back to 
 Linux apps can still request pointer lock temporarily when this option is off. Normal behavior resumes when the app releases the lock.
 
 <a id="pointer-sensitivity"></a>
-### Touchpad Pointer Sensitivity (Acceleration)
+### Touchpad Pointer Sensitivity (Speed / Acceleration)
 
-The range is 0.5x to 10x. Higher values move the pointer farther during fast movement; lower values help with precise positioning.
+The range is 0.5x to 10x, with a default of 1x. This affects the on-screen touchpad, physical touchpads in pointer capture or immersive mode, and external mice in relative mode. It does not affect absolute touch or scrolling speed.
 
-This affects the on-screen touchpad, captured physical touchpads, and external mice in relative mode. It does not affect absolute touch.
+- **Match Android touchpad acceleration enabled (default):** an external physical touchpad first runs Android's native acceleration algorithm, then multiplies the resulting movement by the sensitivity setting. At 1x the distance matches Android; 2x doubles both slow and fast movement, and 0.5x halves it. The multiplier does not change raw finger speed, curve segments, or the acceleration algorithm, and does not add legacy acceleration or smoothing. The base speed still follows Android's touchpad speed setting, or the system default if it cannot be read.
+- **That option disabled, or using the on-screen touchpad or a relative-mode mouse:** the slider controls the original speed-dependent acceleration, not a fixed multiplier. Fast movement receives more gain. Physical touchpads without axis resolution information also fall back to this algorithm.
 
-Acceleration varies with movement speed: slow adjustments stay controlled, while fast movement accelerates more.
+Return to the desktop after editing. For immersive mode, re-enter the mode so the grabbed touchpad loads the new settings. Upgrades retain the previously saved slider value; set it to 1x to start with the native feel.
 
 <a id="reverse-scroll"></a>
 ### Reverse scroll direction

@@ -227,7 +227,8 @@ public final class Touchpad {
     static final float DEFAULT_GESTURE_SCALE = 800f;
     private float gestureScale = DEFAULT_GESTURE_SCALE;
 
-    private float mouseAccelStrength = 1.0f; // 加速度强度，0.5 ~ 10.0
+    // Legacy acceleration strength, or a fixed output multiplier on the native curve.
+    private float mouseAccelStrength = 1.0f; // 0.5 ~ 10.0
 
     // Android's own touchpad curve, for a physical pad whose units per millimetre
     // are known (see setNativeAcceleration). Null keeps the curve above, which the
@@ -313,15 +314,16 @@ public final class Touchpad {
         gestureScale = Math.max(50f, Math.min(4000f, scale));
     }
 
-    /** Set the acceleration strength (clamped to 0.5 ~ 10.0). */
+    /** Set legacy acceleration strength or native output multiplier (0.5 ~ 10.0). */
     void setAccelStrength(float strength) {
         mouseAccelStrength = Math.max(0.5f, Math.min(10.0f, strength));
     }
 
     /**
-     * Move the cursor exactly as Android would for this physical pad, instead of
-     * through the smoothing and the strength curve. Needs the pad's resolution
-     * in units per millimetre; a null curve or a missing resolution turns it off.
+     * Use Android's curve for this physical pad, then scale its output by the
+     * sensitivity setting (1x matches Android). Bypass legacy smoothing and
+     * acceleration. Needs the pad's resolution in units per millimetre; a null
+     * curve or a missing resolution turns it off.
      */
     void setNativeAcceleration(AndroidTouchpadAccel accel,
                                float unitsPerMmX, float unitsPerMmY) {
@@ -913,8 +915,10 @@ public final class Touchpad {
                     rawDy * (inputRangeY / outputHeight),
                     nativeUnitsPerMmX, nativeUnitsPerMmY, frameTimeNs);
             frameMoved = true;
+            // Scale only the result: changing raw input would move the curve's
+            // speed thresholds and no longer preserve Android's acceleration.
             if (delta[0] != 0f || delta[1] != 0f)
-                sendMotion(delta[0], delta[1]);
+                sendMotion(delta[0] * mouseAccelStrength, delta[1] * mouseAccelStrength);
             return;
         }
         float[] smoothed = applySmoothing(rawDx, rawDy);
