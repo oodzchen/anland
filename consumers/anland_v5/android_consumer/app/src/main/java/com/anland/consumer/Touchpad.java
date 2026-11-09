@@ -795,6 +795,9 @@ public final class Touchpad {
 
                             if (Math.abs(avgDx) > 1 || Math.abs(avgDy) > 1) {
                                 isTwoFingerTapCandidate = false;
+                                // The protocol uses the same direction convention
+                                // on both axes: negate finger travel on each before
+                                // applying the user's scroll reversal.
                                 float scale = scrollReversed
                                         ? -scrollSpeed : scrollSpeed;
                                 if (Math.abs(avgDy)
@@ -803,7 +806,7 @@ public final class Touchpad {
                                 }
                                 if (Math.abs(avgDx)
                                         > Math.abs(avgDy) * AXIS_DOMINANCE_RATIO) {
-                                    sendScroll(1, avgDx * scale);
+                                    sendScroll(1, -avgDx * scale);
                                 }
                                 lastX1 = x1;
                                 lastY1 = y1;

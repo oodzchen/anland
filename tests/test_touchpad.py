@@ -122,6 +122,26 @@ public class TouchpadTest implements Touchpad.Output {
   x.check(x.buttons==0,"movement arriving with release is not a tap");
   x=new TouchpadTest(true,0);x.scroll(1000,false);x.tap(1100);
   x.check(x.buttons==2,"default zero cooldown retains intentional post-scroll click");
+  // Scroll direction: the protocol uses the same sign convention on both axes.
+  // Keep the established vertical mapping and make horizontal travel agree,
+  // with reversal and speed applied identically on screen and on grabbed pads.
+  for(boolean physical:new boolean[]{false,true})for(boolean reversed:new boolean[]{false,true})
+   for(float speed:new float[]{0.25f,2f})for(float[] direction:new float[][]{{1,0},{-1,0},{0,1},{0,-1}}){
+    x=physical?grabbed():new TouchpadTest(true,0);
+    x.pad.setScrollReversed(reversed);x.pad.setScrollSpeed(speed);
+    float dx=direction[0]*40,dy=direction[1]*40;
+    x.e(ACTION_DOWN,0,1000,100,100);x.e(ACTION_POINTER_DOWN,1,1010,100,100,200,100);
+    x.e(ACTION_MOVE,0,1020,100+dx,100+dy,200+dx,100+dy);
+    x.e(ACTION_POINTER_UP,1,1030,100+dx,100+dy,200+dx,100+dy);
+    x.e(ACTION_UP,0,1040,100+dx,100+dy);
+    // grabbed() maps raw coordinates to the view before recognizing gestures.
+    float scaleX=physical?3392f/2764:1,scaleY=physical?2400f/1630:1;
+    float sign=reversed?1:-1;
+    x.check(x.scrolls==1 && x.buttons==0 && x.touches==0
+     && Math.abs(x.scrollX-sign*dx*scaleX*speed)<0.01f
+     && Math.abs(x.scrollY-sign*dy*scaleY*speed)<0.01f,
+     "both scroll axes agree: physical="+physical+", reversed="+reversed+", speed="+speed+", dx="+dx+", dy="+dy);
+   }
   // Physical clickpad presses (immersive mode).
   x=new TouchpadTest(true,0);x.e(ACTION_DOWN,0,1000,300,300);x.press(1100,300,300);
   x.e(ACTION_MOVE,0,1120,303,302);x.e(ACTION_MOVE,0,1140,306,305);x.release();x.e(ACTION_UP,0,1200,306,305);
@@ -202,7 +222,7 @@ public class TouchpadTest implements Touchpad.Output {
   legacyLow.pad.setAccelStrength(0.5f);legacyHigh.pad.setAccelStrength(10);
   legacyLow.slide(1000,23,0,8);legacyHigh.slide(1000,23,0,8);
   x.check(legacyLow.mx>0 && legacyHigh.mx>legacyLow.mx*2,"legacy acceleration slider still works");
-  System.out.println("PASS: touchpad regression scenarios including native speed multipliers, lagging contacts, pinch and clickpad presses");
+  System.out.println("PASS: touchpad regression scenarios including scroll directions, native speed multipliers, lagging contacts, pinch and clickpad presses");
  }
 }'''
 }
